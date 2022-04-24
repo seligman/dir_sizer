@@ -11,6 +11,7 @@ Items needed to get past an alpha release:
 - [ ] Test, test, test
 - [ ] If an abstraction is missing a necessary package, hide it
 - [ ] Add more details to the webpage to show overview, etc
+- [ ] Some way of parsing AWS Inventory Reports for larger buckets
 
 Wish list items in a future version:
 
