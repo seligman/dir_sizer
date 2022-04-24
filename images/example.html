@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Dir Sizer</title>
+<style>
+div {
+    border-radius:5px;
+    border-width:1px;
+    border-style:solid;
+    position:absolute;
+}
+.tooltip {
+    display: none;
+    background: #C8C8C8;
+    margin: 25px;
+    padding: 10px;
+    position: absolute;
+    z-index: 1000;
+}
+</style>
+<script>
+document.addEventListener('mousemove', on_mousemove, false);
+var last = null;
+var lastColor = "";
+var tooltips = {
+"t0":["","4.86 TiB","416,188"],
+"t1":["haro","4.86 TiB","416,188"],
+"t2":["haro/thfjlzklrd","2.90 TiB","33,685"],
+"t3":["haro/okchm/qqfn","2.59 TiB","91"],
+"t4":["haro/thfjlzklrd/opyhdopymc","108.34 GiB","10,741"],
+"t5":["haro/thfjlzklrd/opyhdopymc/efepv","79.51 GiB","413"],
+"t6":["haro/thfjlzklrd/opyhdopymc/qlgltc","14.49 GiB","2,194"],
+"t7":["haro/thfjlzklrd/opyhdopymc/pbucaj","11.66 GiB","954"],
+"t8":["haro/thfjlzklrd/brytndpu","54.23 GiB","215"],
+"t9":["haro/thfjlzklrd/brytndpu/sntzpwmhf","54.22 GiB","194"],
+"t10":["haro/thfjlzklrd/brytndpu/sntzpwmhf/ropqhj","54.22 GiB","194"],
+"t11":["haro/thfjlzklrd/ldyvwzi","48.88 GiB","4,282"],
+"t12":["haro/thfjlzklrd/wiazyukfr","30.50 GiB","43"],
+"t13":["haro/thfjlzklrd/wiazyukfr/eobyuiqpxq","30.50 GiB","42"],
+"t14":["haro/wakojsaco","764.00 GiB","118,130"],
+"t15":["haro/wakojsaco/vzu","704.66 GiB","118,095"],
+"t16":["haro/wakojsaco/vzu/uhos","278.12 GiB","35,013"],
+"t17":["haro/wakojsaco/vzu/uhos/btl","146.51 GiB","18,922"],
+"t18":["haro/wakojsaco/vzu/uhos/btl/fetrs","18.75 GiB","10"],
+"t19":["haro/wakojsaco/vzu/uhos/btl/tlcnmso","14.43 GiB","1,643"],
+"t20":["haro/wakojsaco/vzu/uhos/btl/jnhzssbw","5.31 GiB","419"],
+"t21":["haro/wakojsaco/vzu/uhos/cpoiiw","42.72 GiB","2,313"],
+"t22":["haro/wakojsaco/vzu/uhos/aupgejgneo","36.48 GiB","1,265"],
+"t23":["haro/wakojsaco/vzu/uhos/aupgejgneo/sskulsqw","33.48 GiB","1,016"],
+"t24":["haro/wakojsaco/vzu/uhos/lfyfabi","9.20 GiB","197"],
+"t25":["haro/wakojsaco/vzu/uhos/hgvdenludk","9.19 GiB","1,185"],
+"t26":["haro/wakojsaco/vzu/uhos/lsmpebtrec","7.43 GiB","636"],
+"t27":["haro/wakojsaco/vzu/uhos/ogfveh","7.37 GiB","1,750"],
+"t28":["haro/wakojsaco/vzu/wal","147.44 GiB","364"],
+"t29":["haro/wakojsaco/vzu/wal/uns","89.02 GiB","230"],
+"t30":["haro/wakojsaco/vzu/bmhesleyi","85.07 GiB","18,733"],
+"t31":["haro/wakojsaco/vzu/bmhesleyi/yfbhvbjoh","41.97 GiB","13,033"],
+"t32":["haro/wakojsaco/vzu/bmhesleyi/yfbhvbjoh/tlcnmso","12.91 GiB","2,438"],
+"t33":["haro/wakojsaco/vzu/bmhesleyi/kuataiougl","17.34 GiB","147"],
+"t34":["haro/wakojsaco/vzu/bmhesleyi/kuataiougl/vhwmnaa","16.63 GiB","15"],
+"t35":["haro/wakojsaco/vzu/sekddonkva","73.76 GiB","61,964"],
+"t36":["haro/wakojsaco/vzu/sekddonkva/rlvovvxvt","68.97 GiB","56,793"],
+"t37":["haro/wakojsaco/vzu/sekddonkva/rlvovvxvt/eedtmdqm","66.36 GiB","18,719"],
+"t38":["haro/wakojsaco/vzu/dotuilllcu","65.91 GiB","99"],
+"t39":["haro/wakojsaco/vzu/dotuilllcu/kgnid","17.06 GiB","17"],
+"t40":["haro/wakojsaco/vzu/dotuilllcu/npb","15.23 GiB","3"],
+"t41":["haro/wakojsaco/vzu/wdnibktkl","9.40 GiB","359"],
+"t42":["haro/wakojsaco/wal","40.60 GiB","27"],
+"t43":["haro/wakojsaco/lsmpebtrec","18.73 GiB","8"],
+"t44":["haro/hjbaay","392.18 GiB","943"],
+"t45":["haro/sekddonkva","242.09 GiB","74,772"],
+"t46":["haro/sekddonkva/ahfpfdbnm","102.10 GiB","20,339"],
+"t47":["haro/sekddonkva/ahfpfdbnm/pkhnfpmd","102.10 GiB","20,339"],
+"t48":["haro/sekddonkva/ahfpfdbnm/pkhnfpmd/tzw","26.05 GiB","799"],
+"t49":["haro/sekddonkva/ahfpfdbnm/pkhnfpmd/gyhoud","23.28 GiB","1,389"],
+"t50":["haro/sekddonkva/ahfpfdbnm/pkhnfpmd/weabbi","17.46 GiB","510"],
+"t51":["haro/sekddonkva/ahfpfdbnm/pkhnfpmd/jcd","12.08 GiB","1,926"],
+"t52":["haro/sekddonkva/ahfpfdbnm/pkhnfpmd/fyxk","8.50 GiB","2,583"],
+"t53":["haro/sekddonkva/tyxh","70.75 GiB","16,075"],
+"t54":["haro/sekddonkva/tyxh/eedtmdqm","70.20 GiB","13,862"],
+"t55":["haro/sekddonkva/qlgltc","32.45 GiB","4,477"],
+"t56":["haro/sekddonkva/qlgltc/rsetz","32.20 GiB","4,376"],
+"t57":["haro/sekddonkva/qhufwxp","13.78 GiB","24,501"],
+"t58":["haro/sekddonkva/qhufwxp/xwqzzt","13.01 GiB","23,571"],
+"t59":["haro/sekddonkva/ydxyuu","11.68 GiB","1,002"],
+"t60":["haro/sekddonkva/ydxyuu/jwicq","11.67 GiB","955"],
+"t61":["haro/sekddonkva/jgailgz","9.41 GiB","995"],
+"t62":["haro/jeasmbqz","174.38 GiB","33,034"],
+"t63":["haro/jeasmbqz/jeasmbqz","172.82 GiB","30,283"],
+"t64":["haro/jeasmbqz/jeasmbqz/btl","172.81 GiB","30,273"],
+"t65":["haro/jeasmbqz/jeasmbqz/btl/mwenfdu","77.72 GiB","16,334"],
+"t66":["haro/jeasmbqz/jeasmbqz/btl/mwenfdu/dpl","1.95 GiB","586"],
+"t67":["haro/jeasmbqz/jeasmbqz/btl/mwenfdu/xqi","1.54 GiB","526"],
+"t68":["haro/jeasmbqz/jeasmbqz/btl/vcnaqrgbq","37.27 GiB","4,938"],
+"t69":["haro/jeasmbqz/jeasmbqz/btl/iuvhcgoxin","24.81 GiB","3,682"],
+"t70":["haro/btl","169.68 GiB","31,415"],
+"t71":["haro/btl/mwenfdu","77.51 GiB","16,300"],
+"t72":["haro/btl/mwenfdu/dpl","2.21 GiB","643"],
+"t73":["haro/btl/mwenfdu/xqi","1.54 GiB","526"],
+"t74":["haro/btl/mwenfdu/vpr","1.11 GiB","143"],
+"t75":["haro/btl/mwenfdu/aefztiuprg","1.08 GiB","636"],
+"t76":["haro/btl/vcnaqrgbq","37.27 GiB","4,938"],
+"t77":["haro/btl/iuvhcgoxin","24.81 GiB","3,682"],
+"t78":["haro/btl/zpfe","8.90 GiB","1,323"],
+"t79":["haro/btl/pfnjz","7.80 GiB","1,565"],
+"t80":["haro/gdyqrgf","76.17 GiB","2,398"],
+"t81":["haro/gdyqrgf/xmyuxhw","34.49 GiB","1,325"],
+"t82":["haro/gdyqrgf/rdu","23.87 GiB","767"],
+"t83":["haro/ncv","67.98 GiB","1,150"],
+"t84":["haro/ncv/cyjxre","45.13 GiB","348"],
+"t85":["haro/ncv/cyjxre/mdzikdyi","30.67 GiB","236"],
+"t86":["haro/uwgii","49.83 GiB","4,345"]
+};
+function safe_html(value) {
+    return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function on_mousemove(e) {
+    var tooltip = document.getElementById("tooltip");
+    tooltip.style.left = e.pageX + 'px';
+    tooltip.style.top = e.pageY + 'px';
+    var cur = e.srcElement;
+    if (cur.tagName != "DIV" || !(cur.id in tooltips)) {
+        cur = null;
+    }
+
+    if (last != cur) {
+        if (last != null) {
+            last.style.backgroundColor = lastColor;
+        }
+        if (cur != null) {
+            lastColor = cur.style.backgroundColor;
+            cur.style.backgroundColor = 'yellow';
+            document.getElementById("folder").innerHTML = safe_html(tooltips[cur.id][0]);
+            document.getElementById("size").innerHTML = tooltips[cur.id][1];
+            document.getElementById("objects").innerHTML = tooltips[cur.id][2];
+            tooltip.style.display = 'block';
+        } else {
+            tooltip.style.display = 'none';
+        }
+        last = cur;
+    }
+}
+</script>
+</head>
+<body>
+<div id="t0" style="width:890px;height:590px;left:5px;top:5px;background-color:#b8987a">
+  <div id="t1" style="width:879px;height:579px;left:5px;top:5px;background-color:#828147">
+    <div id="t2" style="width:521px;height:568px;left:5px;top:5px;background-color:#86ab81">
+      <div id="t3" style="width:510px;height:510px;left:5px;top:52px;background-color:#489876">
+      </div>
+      <div id="t4" style="width:223px;height:37px;left:5px;top:5px;background-color:#489876">
+        <div id="t5" style="width:155px;height:26px;left:5px;top:5px;background-color:#75b2b0">
+        </div>
+        <div id="t6" style="width:20px;height:26px;left:170px;top:5px;background-color:#75b2b0">
+        </div>
+        <div id="t7" style="width:17px;height:23px;left:200px;top:8px;background-color:#75b2b0">
+        </div>
+      </div>
+      <div id="t8" style="width:107px;height:37px;left:238px;top:5px;background-color:#489876">
+        <div id="t9" style="width:96px;height:26px;left:5px;top:5px;background-color:#75b2b0">
+          <div id="t10" style="width:85px;height:15px;left:5px;top:5px;background-color:#5e8fa8">
+          </div>
+        </div>
+      </div>
+      <div id="t11" style="width:95px;height:37px;left:354px;top:5px;background-color:#489876">
+      </div>
+      <div id="t12" style="width:56px;height:37px;left:460px;top:5px;background-color:#489876">
+        <div id="t13" style="width:45px;height:26px;left:5px;top:5px;background-color:#75b2b0">
+        </div>
+      </div>
+    </div>
+    <div id="t14" style="width:219px;height:335px;left:536px;top:238px;background-color:#86ab81">
+      <div id="t15" style="width:208px;height:298px;left:5px;top:31px;background-color:#489876">
+        <div id="t16" style="width:125px;height:170px;left:5px;top:123px;background-color:#75b2b0">
+          <div id="t17" style="width:86px;height:107px;left:5px;top:57px;background-color:#5e8fa8">
+            <div id="t18" style="width:38px;height:34px;left:5px;top:67px;background-color:#a1a1ba">
+            </div>
+            <div id="t19" style="width:27px;height:34px;left:53px;top:67px;background-color:#a1a1ba">
+            </div>
+            <div id="t20" style="width:17px;height:12px;left:5px;top:5px;background-color:#a1a1ba">
+            </div>
+          </div>
+          <div id="t21" style="width:18px;height:107px;left:101px;top:57px;background-color:#5e8fa8">
+          </div>
+          <div id="t22" style="width:44px;height:42px;left:5px;top:5px;background-color:#5e8fa8">
+            <div id="t23" style="width:29px;height:31px;left:5px;top:5px;background-color:#a1a1ba">
+            </div>
+          </div>
+          <div id="t24" style="width:17px;height:16px;left:59px;top:5px;background-color:#5e8fa8">
+          </div>
+          <div id="t25" style="width:17px;height:16px;left:59px;top:31px;background-color:#5e8fa8">
+          </div>
+          <div id="t26" style="width:12px;height:16px;left:86px;top:31px;background-color:#5e8fa8">
+          </div>
+          <div id="t27" style="width:12px;height:16px;left:108px;top:31px;background-color:#5e8fa8">
+          </div>
+        </div>
+        <div id="t28" style="width:62px;height:170px;left:140px;top:123px;background-color:#75b2b0">
+          <div id="t29" style="width:51px;height:92px;left:5px;top:72px;background-color:#5e8fa8">
+          </div>
+        </div>
+        <div id="t30" style="width:53px;height:108px;left:5px;top:5px;background-color:#75b2b0">
+          <div id="t31" style="width:42px;height:44px;left:5px;top:58px;background-color:#5e8fa8">
+            <div id="t32" style="width:12px;height:16px;left:5px;top:22px;background-color:#a1a1ba">
+            </div>
+          </div>
+          <div id="t33" style="width:24px;height:24px;left:5px;top:23px;background-color:#5e8fa8">
+            <div id="t34" style="width:13px;height:13px;left:5px;top:6px;background-color:#a1a1ba">
+            </div>
+          </div>
+        </div>
+        <div id="t35" style="width:94px;height:52px;left:68px;top:5px;background-color:#75b2b0">
+          <div id="t36" style="width:77px;height:41px;left:5px;top:5px;background-color:#5e8fa8">
+            <div id="t37" style="width:65px;height:30px;left:5px;top:5px;background-color:#a1a1ba">
+            </div>
+          </div>
+        </div>
+        <div id="t38" style="width:94px;height:45px;left:68px;top:67px;background-color:#75b2b0">
+          <div id="t39" style="width:14px;height:34px;left:39px;top:5px;background-color:#5e8fa8">
+          </div>
+          <div id="t40" style="width:25px;height:18px;left:63px;top:22px;background-color:#5e8fa8">
+          </div>
+        </div>
+        <div id="t41" style="width:11px;height:30px;left:172px;top:5px;background-color:#75b2b0">
+        </div>
+      </div>
+      <div id="t42" style="width:139px;height:16px;left:5px;top:5px;background-color:#489876">
+      </div>
+      <div id="t43" style="width:59px;height:16px;left:154px;top:5px;background-color:#489876">
+      </div>
+    </div>
+    <div id="t44" style="width:108px;height:335px;left:765px;top:238px;background-color:#86ab81">
+    </div>
+    <div id="t45" style="width:175px;height:125px;left:536px;top:5px;background-color:#86ab81">
+      <div id="t46" style="width:64px;height:114px;left:5px;top:5px;background-color:#489876">
+        <div id="t47" style="width:53px;height:103px;left:5px;top:5px;background-color:#75b2b0">
+          <div id="t48" style="width:17px;height:41px;left:5px;top:56px;background-color:#5e8fa8">
+          </div>
+          <div id="t49" style="width:15px;height:41px;left:32px;top:56px;background-color:#5e8fa8">
+          </div>
+          <div id="t50" style="width:21px;height:20px;left:5px;top:5px;background-color:#5e8fa8">
+          </div>
+          <div id="t51" style="width:21px;height:11px;left:5px;top:35px;background-color:#5e8fa8">
+          </div>
+          <div id="t52" style="width:11px;height:12px;left:36px;top:35px;background-color:#5e8fa8">
+          </div>
+        </div>
+      </div>
+      <div id="t53" style="width:59px;height:83px;left:79px;top:36px;background-color:#489876">
+        <div id="t54" style="width:48px;height:72px;left:5px;top:5px;background-color:#75b2b0">
+        </div>
+      </div>
+      <div id="t55" style="width:21px;height:83px;left:148px;top:36px;background-color:#489876">
+        <div id="t56" style="width:10px;height:72px;left:5px;top:5px;background-color:#75b2b0">
+        </div>
+      </div>
+      <div id="t57" style="width:30px;height:21px;left:79px;top:5px;background-color:#489876">
+        <div id="t58" style="width:17px;height:10px;left:5px;top:5px;background-color:#75b2b0">
+        </div>
+      </div>
+      <div id="t59" style="width:24px;height:21px;left:119px;top:5px;background-color:#489876">
+        <div id="t60" style="width:13px;height:10px;left:5px;top:5px;background-color:#75b2b0">
+        </div>
+      </div>
+      <div id="t61" style="width:17px;height:21px;left:152px;top:5px;background-color:#489876">
+      </div>
+    </div>
+    <div id="t62" style="width:175px;height:88px;left:536px;top:140px;background-color:#86ab81">
+      <div id="t63" style="width:164px;height:77px;left:5px;top:5px;background-color:#489876">
+        <div id="t64" style="width:153px;height:66px;left:5px;top:5px;background-color:#75b2b0">
+          <div id="t65" style="width:60px;height:55px;left:5px;top:5px;background-color:#5e8fa8">
+            <div id="t66" style="width:21px;height:20px;left:5px;top:5px;background-color:#a1a1ba">
+            </div>
+            <div id="t67" style="width:21px;height:14px;left:5px;top:35px;background-color:#a1a1ba">
+            </div>
+          </div>
+          <div id="t68" style="width:46px;height:29px;left:75px;top:5px;background-color:#5e8fa8">
+          </div>
+          <div id="t69" style="width:46px;height:16px;left:75px;top:44px;background-color:#5e8fa8">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="t70" style="width:102px;height:147px;left:721px;top:80px;background-color:#86ab81">
+      <div id="t71" style="width:91px;height:59px;left:5px;top:83px;background-color:#489876">
+        <div id="t72" style="width:39px;height:24px;left:5px;top:5px;background-color:#75b2b0">
+        </div>
+        <div id="t73" style="width:39px;height:14px;left:5px;top:39px;background-color:#75b2b0">
+        </div>
+        <div id="t74" style="width:11px;height:30px;left:54px;top:23px;background-color:#75b2b0">
+        </div>
+        <div id="t75" style="width:10px;height:30px;left:74px;top:23px;background-color:#75b2b0">
+        </div>
+      </div>
+      <div id="t76" style="width:61px;height:37px;left:5px;top:5px;background-color:#489876">
+      </div>
+      <div id="t77" style="width:61px;height:21px;left:5px;top:52px;background-color:#489876">
+      </div>
+      <div id="t78" style="width:20px;height:17px;left:76px;top:56px;background-color:#489876">
+      </div>
+      <div id="t79" style="width:20px;height:13px;left:76px;top:33px;background-color:#489876">
+      </div>
+    </div>
+    <div id="t80" style="width:40px;height:147px;left:833px;top:80px;background-color:#86ab81">
+      <div id="t81" style="width:29px;height:57px;left:5px;top:85px;background-color:#489876">
+      </div>
+      <div id="t82" style="width:29px;height:36px;left:5px;top:38px;background-color:#489876">
+      </div>
+    </div>
+    <div id="t83" style="width:83px;height:65px;left:721px;top:5px;background-color:#86ab81">
+      <div id="t84" style="width:52px;height:48px;left:5px;top:5px;background-color:#489876">
+        <div id="t85" style="width:32px;height:29px;left:5px;top:5px;background-color:#75b2b0">
+        </div>
+      </div>
+    </div>
+    <div id="t86" style="width:58px;height:65px;left:815px;top:5px;background-color:#86ab81">
+    </div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip">
+<nobr>Folder: <span id="folder"></span></nobr><br>
+<nobr>Size: <span id="size"></span></nobr><br>
+<nobr>Objects: <span id="objects"></span></nobr><br>
+</div>
+</body>
+</html>
