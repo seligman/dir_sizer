@@ -1,8 +1,8 @@
 # Dir Sizer
 
-This is a *work in progress*.
+This is a *work in progress*, right now consider this an Alpha or Proof of Concept level.
 
-This is a utility to visualize the size of a directory, or a directory like thing.  Right now it produces webpages that look like this:
+`dir_sizer` is a utility to visualize the size of a directory, or a directory like thing.  Right now it produces webpages that look like this:
 
 ![](images/example_view.png)
 
@@ -13,7 +13,7 @@ Right now it only supports producing reports for AWS S3 Buckets, but in the futu
 To run it, right now you'll need a recent version of Python installed, along with the boto3 package available.  Then you can run a command like:
 
 ```
-python dir_sizer --s3 --bucket example-bucket --output example.html
+python dir_sizer.py --s3 --bucket example-bucket --output example.html
 ```
 
 Which will produce a file called "example.html" showing details of the "example-bucket" AWS S3 Bucket.
