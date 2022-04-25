@@ -5,7 +5,7 @@ Tracking the work items to get to different stages of development.
 Items needed to get past an alpha release:
 
 - [ ] Add a local file system abstraction.
-- [ ] Move the "cache" logic out of the S3 abstraction
+- [x] Move the "cache" logic out of the S3 abstraction
 - [ ] Improve comments
 - [ ] Add a requirements.txt file to bring in all needed packages
 - [ ] Test, test, test
