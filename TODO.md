@@ -23,3 +23,5 @@ Wish list items in a future version:
 - [ ] Add a FTP abstraction
 - [ ] A local view of some sort
 - [ ] Options to control the main size in the HTML view 
+- [ ] Some level of integration with CloudWatch as a widget
+- [ ] An example Lambd that auto-generates a webpage with some frequency
