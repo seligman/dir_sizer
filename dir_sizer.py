@@ -3,13 +3,17 @@
 from grid_layout import get_webpage
 from utils import Folder
 import os
-import s3_abstraction
 import sqlite3
 import sys
 import textwrap
 
+import s3_abstraction
+import local_abstraction
+import test_abstraction
 ABSTRACTIONS = [
     s3_abstraction,
+    local_abstraction,
+    test_abstraction,       # TODO: Remove this when it's no longer useful
 ]
 
 def set_output(opts, args):
@@ -81,6 +85,7 @@ def main():
             msg = textwrap.dedent(cur.get_help()).strip()
             for row in msg.split("\n"):
                 print(" " * 4 + row)
+            print("")
         exit(1)
 
     folder = Folder()

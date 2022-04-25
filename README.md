@@ -8,7 +8,7 @@ This is a *work in progress*, right now consider this an Alpha or Proof of Conce
 
 Showing the relative size of folders, making it easy to see what areas of a folder are using the most space.
 
-Right now it only supports producing reports for AWS S3 Buckets, but in the future it will add support for other sources, including the local file system, Google Storage Bucket, Azure Blobs, remote filesystems via SSH, and perhaps others.
+It supports scanning and producing reports for AWS S3 Buckets and directories in the local file system.  In the future it will add support for other sources, including Google Storage Bucket, Azure Blobs, remote filesystems via SSH, and perhaps others.
 
 To run it, right now you'll need a recent version of Python installed, along with the boto3 package available.  Then you can run a command like:
 
