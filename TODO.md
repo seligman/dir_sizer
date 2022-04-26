@@ -5,7 +5,7 @@ Tracking the work items to get to different stages of development.
 Items needed to get past an alpha release:
 
 - [x] Fix issue with too-nested layout
-- [ ] Add labels for top level rects
+- [x] Add labels for top level rects
 - [x] Add a local file system abstraction.
 - [x] Move the "cache" logic out of the S3 abstraction
 - [ ] Improve comments

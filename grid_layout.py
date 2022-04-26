@@ -178,21 +178,21 @@ def draw_layout(opts, abstraction, width, height, x, y, folder, tooltips, path, 
         abstraction.dump_count(opts, folder.count),
     ]
     
-    html = ""
+    output_html = ""
     if depth > 0:
-        html += f'{"  " * depth}<div id="{tool_id}" style="'
-        html += f'width:{round(width)}px;'
-        html += f'height:{round(height)}px;'
-        html += f'left:{round(x)}px;'
-        html += f'top:{round(y)}px;'
-        html += f'background-color:{get_color(depth)}'
-        html += f'">\n'
+        output_html += f'{"  " * depth}<div id="{tool_id}" style="'
+        output_html += f'width:{round(width)}px;'
+        output_html += f'height:{round(height)}px;'
+        output_html += f'left:{round(x)}px;'
+        output_html += f'top:{round(y)}px;'
+        output_html += f'background-color:{get_color(depth)}'
+        output_html += f'">\n'
     else:
-        html += f'{"  " * depth}<div id="{tool_id}" style="'
-        html += f'width:{round(width)}px;'
-        html += f'height:{round(height)}px;'
-        html += f'border-style:none'
-        html += f'">\n'
+        output_html += f'{"  " * depth}<div id="{tool_id}" style="'
+        output_html += f'width:{round(width)}px;'
+        output_html += f'height:{round(height)}px;'
+        output_html += f'border-style:none'
+        output_html += f'">\n'
 
     x = 0
     y = 0
@@ -204,16 +204,19 @@ def draw_layout(opts, abstraction, width, height, x, y, folder, tooltips, path, 
 
     for cur in temp:
         if cur.width >= 10 and cur.height >= 10 and cur.key is not None:
-            html += draw_layout(
+            output_html += draw_layout(
                 opts,
                 abstraction, 
                 cur.width, cur.height, cur.x + x, cur.y + y, 
                 folder[cur.key], tooltips, path + [cur.key], depth + 1
             )
 
-    html += f'{"  " * depth}</div>\n'
+    if depth == 1 and path[-1] is not None:
+        output_html += f'<div class="label">{html.escape(path[-1])}</div>'
 
-    return html
+    output_html += f'{"  " * depth}</div>\n'
+
+    return output_html
 
 def get_summary(opts, abstraction, folder):
     info = abstraction.get_summary(opts, folder)
@@ -246,6 +249,19 @@ div {
     padding: 10px;
     position: absolute;
     z-index: 1000;
+}
+.label {
+    background-color: #eed;
+    border-radius: 0;
+    border-width: 1px;
+    border-style: solid;
+    border-color: #222;
+    font-size: 10pt;
+    padding-left: 0.2em;
+    padding-right: 0.2em;
+    opacity: 80%;
+    bottom: 2px;
+    right: 2px;
 }
 </style>
 <script>
