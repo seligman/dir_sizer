@@ -41,5 +41,12 @@ def dump_size(opts, value):
 def dump_count(opts, value):
     return count_to_string(value)
 
+def get_summary(opts, folder):
+    return {
+        "Location": "Test",
+        "Total objects": "1234",
+        "Total size": "1234",
+    }
+
 if __name__ == "__main__":
     print("This module is not meant to be run directly")

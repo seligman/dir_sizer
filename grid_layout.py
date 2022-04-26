@@ -229,7 +229,7 @@ def draw_layout(opts, abstraction, width, height, x, y, folder, tooltips, path, 
 
     if depth == 1 and path[-1] is not None:
         # The first level off the root gets a label
-        output_html += f'<div class="label">{html.escape(path[-1])}</div>'
+        output_html += f'{"  " * (depth + 1)}<div class="label">{html.escape(path[-1])}</div>\n'
 
     output_html += f'{"  " * depth}</div>\n'
 
