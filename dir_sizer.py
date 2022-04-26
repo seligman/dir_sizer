@@ -2,6 +2,7 @@
 
 from grid_layout import get_webpage
 from utils import Folder, BatchingSql
+import json
 import os
 import sqlite3
 import sys
@@ -54,8 +55,10 @@ def main():
             args = args[1:]
             args = temp(opts, args)
         else:
+            found = False
             for cur in ABSTRACTIONS:
                 if cur.MAIN_SWITCH == args[0]:
+                    found = True
                     if opts['target'] is not None:
                         opts['show_help'] = True
                         print("ERROR: More than one module specified")
@@ -64,6 +67,9 @@ def main():
                     args = args[1:]
                     args = cur.handle_args(opts, args)
                     break
+            if not found:
+                print("ERROR: Invalid options " + args[0])
+                opts['show_help'] = True
 
     if not opts['show_help'] and opts['target'] is None:
         print("ERROR: No target scanner module found")
@@ -92,7 +98,7 @@ def main():
     abstraction = opts['target']
 
     for filename, size in load_files(opts, abstraction):
-        folder.add(abstraction.split(filename), size)
+        folder.add(filename, size)
     folder.sum_up()
 
     with open(opts['output'], "wt", newline="\n", encoding="utf-8") as f:
@@ -105,7 +111,7 @@ def load_files(opts, abstraction):
     if opts['cache'] is not None and os.path.isfile(opts['cache']):
         db = sqlite3.connect(opts['cache'])
         for key, size in db.execute("SELECT key, size FROM files;"):
-            yield key, size
+            yield json.loads(key), size
         db.close()
     else:
         db, sql = None, None
@@ -118,7 +124,7 @@ def load_files(opts, abstraction):
         for filename, size in abstraction.scan_folder(opts):
             yield filename, size
             if sql is not None:
-                sql.execute(filename, size)
+                sql.execute(json.dumps(filename), size)
 
         if sql is not None:
             sql.finish()

@@ -15,12 +15,14 @@ def get_help():
 
 def scan_folder(opts):
     # Just return a hard coded list of values to test things out
-    return [
-        ("base/other/example/001",        200),
-        ("base/other/example/sub_a/002",  120),
-        ("base/other/example/sub_b/003",  130),
-        ("base/other/example/sub_c/004",  140),
+    temp = [
+        ("001",        200),
+        ("sub_a/002",  120),
+        ("sub_b/003",  130),
+        ("sub_c/004",  140),
     ]
+    for key, value in temp:
+        yield key.split("/"), value
 
 def split(path):
     # Hardcoded to use forward slashes

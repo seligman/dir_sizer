@@ -34,9 +34,9 @@ def scan_folder(opts):
     # Scan all folders under the selected path
     total_objects, total_size = 0, 0
     # Use expanduser to allow things like "~/"
-    todo = deque([os.path.expanduser(opts['lfs_base'])])
+    todo = deque([(os.path.expanduser(opts['lfs_base']), [])])
     while len(todo) > 0:
-        path = todo.pop()
+        path, path_parts = todo.pop()
         # Use scandir instead of other options to speed force FindFirstFile on windows
         # for a considerable speedup, but these functions aren't recursive on their
         # own, so track directories in a deque and recurse manually
@@ -47,17 +47,17 @@ def scan_folder(opts):
                 try:
                     if stat.S_ISDIR(cur.stat().st_mode):
                         # It's a directory, add it to our list ot do
-                        todo.append(cur.path)
+                        todo.append((cur.path, path_parts + [cur.name]))
                     else:
                         # Pull out the size before doing anything with the data
                         # to give the exception a chance to fire
                         size = cur.stat().st_size
-                        path = cur.path
+                        filename = cur.name
                         # It's a file, add to our count and send it out
                         total_objects += 1
                         total_size += size
                         msg(f"Scanning, gathered {total_objects} totaling {size_to_string(total_size)}...")
-                        yield path, size
+                        yield path_parts + [filename], size
                 except (FileNotFoundError, OSError, PermissionError):
                     # Ignore any files we don't see (mostly dangling links)
                     # Also ignore any permission errors

@@ -2,33 +2,49 @@
 
 from colorsys import hsv_to_rgb
 from math import cos
-from utils import Folder, size_to_string, count_to_string
+from utils import size_to_string, count_to_string
+import html
 import json
 
 class TreeMapNode:
+    # A single node on the tree view of nodes
     __slots__ = ("x", "y", "width", "height", "current_height", "vertical", "area", "value", "output", "key")
     def __init__(self, width=0, height=0, value=0, key=None):
-        self.x = 0
-        self.y = 0
-        self.current_height = 0
-        self.vertical = False
-        self.width = width
-        self.height = height
-        self.area = 0
+        # Description of this node
         self.value = value
         self.key = key
+        # Coords for this node
+        self.x = 0
+        self.y = 0
+        self.width = width
+        self.height = height
+        self.current_height = 0
+        self.vertical = False
+        self.area = 0
         self.output = []
 
 def plot(width, height, folder):
+    # Turn a list objects in a folder to a corresponding list of tree map nodes
+    # On return, it will have n+1 or less objects.  Small objects might be dropped
+    # and an extra object with a key of None is added if there's extra space
+
+    # Construct the node for this object, note that it's not offset, x,y are 0,0
     temp = TreeMapNode(width=width, height=height)
+    # Build up the list of sub nodes, adding a padding one if needed
     values = [TreeMapNode(value=value.size, key=key) for key, value in folder.sub.items()]
     remaining = folder.size - sum(x.value for x in values)
     if remaining > 0:
         values.append(TreeMapNode(value=remaining))
+    # And do the main work of laying out the nodes
     _squarify(temp, _prepare_nodes(temp, values), [], _get_width(temp), 0)
+    # Return the sub-nodes.  This is for this level only
     return temp.output
 
 def _prepare_nodes(temp, values):
+    # Figure out the area for each node in turn, and sort by area
+    # This is technically the same as sorting by value directly, but
+    # this is done to allow us to also know which nodes are so small
+    # as to be useless, so they're dropped here
     temp_sum = sum(x.value for x in values if x.value > 0)
     ret = [x for x in values if (x.value / temp_sum) >= 0.01]
     ret.sort(key=lambda x: x.value, reverse=True)
@@ -39,9 +55,15 @@ def _prepare_nodes(temp, values):
     return ret
 
 def _squarify(temp, values, current_row, width, bail):
+    # Attempt to layout the squares, they'll be stretched to fit
+
     if bail > 100:
+        # An edge case, if we're 100 sub-rows in this process
+        # just give up, whatever we end up with is nonsense at this
+        # point
         return
     
+    # Try to build up the current row
     next_iter_preview = current_row[:]
     if len(values) > 1:
         next_iter_preview.append(values[0])
@@ -50,6 +72,7 @@ def _squarify(temp, values, current_row, width, bail):
     next_ratio = _calc_aspect_ratio(next_iter_preview, width)
 
     if current_ratio == 0 or (next_ratio < current_ratio and next_ratio >= 1):
+        # This gets us further away from a square row, so move on to the next row
         if len(values) > 0:
             current_row.append(values.pop(0))
         temp.current_height = _calc_height(current_row, width)
@@ -58,6 +81,7 @@ def _squarify(temp, values, current_row, width, bail):
         else:
             _layout_row(temp, current_row)
     else:
+        # This gets us closer to a square row, so use it
         _layout_row(temp, current_row)
         _squarify(temp, values, [], _get_width(temp), bail + 1)
 
@@ -149,18 +173,26 @@ def draw_layout(opts, abstraction, width, height, x, y, folder, tooltips, path, 
 
     tool_id = f"t{len(tooltips)}"
     tooltips[tool_id] = [
-        abstraction.join(path),
+        abstraction.join(path) if depth > 0 else "<base>",
         abstraction.dump_size(opts, folder.size),
         abstraction.dump_count(opts, folder.count),
     ]
     
-    html = f'{"  " * depth}<div id="{tool_id}" style="'
-    html += f'width:{round(width)}px;'
-    html += f'height:{round(height)}px;'
-    html += f'left:{round(x)}px;'
-    html += f'top:{round(y)}px;'
-    html += f'background-color:{get_color(depth)}'
-    html += f'">\n'
+    html = ""
+    if depth > 0:
+        html += f'{"  " * depth}<div id="{tool_id}" style="'
+        html += f'width:{round(width)}px;'
+        html += f'height:{round(height)}px;'
+        html += f'left:{round(x)}px;'
+        html += f'top:{round(y)}px;'
+        html += f'background-color:{get_color(depth)}'
+        html += f'">\n'
+    else:
+        html += f'{"  " * depth}<div id="{tool_id}" style="'
+        html += f'width:{round(width)}px;'
+        html += f'height:{round(height)}px;'
+        html += f'border-style:none'
+        html += f'">\n'
 
     x = 0
     y = 0
@@ -178,12 +210,22 @@ def draw_layout(opts, abstraction, width, height, x, y, folder, tooltips, path, 
                 cur.width, cur.height, cur.x + x, cur.y + y, 
                 folder[cur.key], tooltips, path + [cur.key], depth + 1
             )
+
     html += f'{"  " * depth}</div>\n'
+
     return html
+
+def get_summary(opts, abstraction, folder):
+    info = abstraction.get_summary(opts, folder)
+    output_html = ""
+    for key, value in info.items():
+        output_html += f"<b>{html.escape(key)}</b>: {html.escape(value)}<br>"
+    return output_html
 
 def get_webpage(opts, abstraction, folder, width, height):
     tooltips = {}
     tree_html = draw_layout(opts, abstraction, width, height, 0, 0, folder, tooltips, [])
+    summary_html = get_summary(opts, abstraction, folder)
     tooltips = ",\n".join(json.dumps(x) + ":" + json.dumps(y, separators=(',', ':')) for x,y in tooltips.items())
 
     return """<!DOCTYPE html>
@@ -243,6 +285,8 @@ function on_mousemove(e) {
 </script>
 </head>
 <body>
+""" + summary_html + """
+<hr>
 """ + tree_html + """
 <div class="tooltip" id="tooltip">
 <nobr>Folder: <span id="folder"></span></nobr><br>

@@ -46,16 +46,17 @@ def scan_folder(opts):
 
     paginator = s3.get_paginator("list_objects_v2")
     args = {"Bucket": opts['s3_bucket']}
+    prefix_len = 0
     if 's3_prefix' in opts:
         args['Prefix'] = opts['s3_prefix']
+        prefix_len = len(opts['s3_prefix'])
+
     total_objects, total_size = 0, 0
     for page in paginator.paginate(**args):
-        todo = []
         for cur in page['Contents']:
             total_objects += 1
             total_size += cur['Size']
-            todo.append((cur['Key'], cur['Size']))
-            yield cur['Key'], cur['Size']
+            yield cur['Key'][prefix_len:].split("/"), cur['Size']
         msg(f"Scanning, gathered {total_objects} totaling {size_to_string(total_size)}...")
     msg(f"Done, saw {total_objects} totaling {size_to_string(total_size)}", newline=True)
 
@@ -71,6 +72,13 @@ def dump_size(opts, value):
 
 def dump_count(opts, value):
     return count_to_string(value)
+
+def get_summary(opts, folder):
+    return {
+        "Location": "s3://" + opts['s3_bucket'] + "/" + opts.get('s3_prefix', ""),
+        "Total objects": dump_count(opts, folder.count),
+        "Total size": dump_size(opts, folder.size),
+    }
 
 if __name__ == "__main__":
     print("This module is not meant to be run directly")
