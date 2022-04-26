@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from grid_layout import get_webpage
-from utils import Folder
+from utils import Folder, BatchingSql
 import os
 import sqlite3
 import sys
@@ -108,25 +108,20 @@ def load_files(opts, abstraction):
             yield key, size
         db.close()
     else:
-        db = None
+        db, sql = None, None
         if opts['cache'] is not None:
             db = sqlite3.connect(opts['cache'])
-            db.execute("CREATE TABLE files(key TEXT NOT NULL, size INTEGER NOT NULL);")
+            db.execute("CREATE TABLE files(key TEXT NOT NULL, size NOT NULL);")
             db.commit()
+            sql = BatchingSql(db, "INSERT INTO files(key, size) VALUES (?, ?);")
         todo = []
         for filename, size in abstraction.scan_folder(opts):
             yield filename, size
-            if db is not None:
-                todo.append((filename, size))
-                if len(todo) >= 5000:
-                    db.executemany("INSERT INTO files(key, size) VALUES (?, ?);", todo)
-                    db.commit()
-                    todo = []
+            if sql is not None:
+                sql.execute(filename, size)
 
-        if db is not None:
-            if len(todo) > 0:
-                db.executemany("INSERT INTO files(key, size) VALUES (?, ?);", todo)
-                db.commit()
+        if sql is not None:
+            sql.finish()
             db.close()
 
 if __name__ == "__main__":

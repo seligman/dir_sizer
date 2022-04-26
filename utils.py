@@ -105,5 +105,25 @@ class Folder:
         ret._load(f)
         return ret
 
+class BatchingSql:
+    # Simple helper to batch calls to SQLite
+    def __init__(self, db, sql):
+        self.db = db
+        self.todo = []
+        self.sql = sql
+
+    # Execute on a set of values, if enough values have been gathered, pass to the database
+    def execute(self, *values):
+        self.todo.append(values)
+        if len(self.todo) >= 1000:
+            self.finish()
+
+    # Flush out any remaining items
+    def finish(self):
+        if len(self.todo) > 0:
+            self.db.executemany(self.sql, self.todo)
+            self.db.commit()
+            self.todo = []
+
 if __name__ == "__main__":
     print("This module is not meant to be run directly")
