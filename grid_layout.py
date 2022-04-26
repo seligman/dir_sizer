@@ -136,7 +136,7 @@ def get_color(depth):
 
     return f"#{int(red*255):02x}{int(green*255):02x}{int(blue*255):02x}"
 
-def draw_layout(abstraction, width, height, x, y, folder, tooltips, path, depth=0):
+def draw_layout(opts, abstraction, width, height, x, y, folder, tooltips, path, depth=0):
     if width < 20 or height < 20:
         return ""
 
@@ -150,8 +150,8 @@ def draw_layout(abstraction, width, height, x, y, folder, tooltips, path, depth=
     tool_id = f"t{len(tooltips)}"
     tooltips[tool_id] = [
         abstraction.join(path),
-        size_to_string(folder.size),
-        count_to_string(folder.count),
+        abstraction.dump_size(opts, folder.size),
+        abstraction.dump_count(opts, folder.count),
     ]
     
     html = f'{"  " * depth}<div id="{tool_id}" style="'
@@ -173,6 +173,7 @@ def draw_layout(abstraction, width, height, x, y, folder, tooltips, path, depth=
     for cur in temp:
         if cur.width >= 10 and cur.height >= 10 and cur.key is not None:
             html += draw_layout(
+                opts,
                 abstraction, 
                 cur.width, cur.height, cur.x + x, cur.y + y, 
                 folder[cur.key], tooltips, path + [cur.key], depth + 1
@@ -180,10 +181,9 @@ def draw_layout(abstraction, width, height, x, y, folder, tooltips, path, depth=
     html += f'{"  " * depth}</div>\n'
     return html
 
-def get_webpage(folder, width, height):
-    import s3_abstraction
+def get_webpage(opts, abstraction, folder, width, height):
     tooltips = {}
-    tree_html = draw_layout(s3_abstraction, width, height, 0, 0, folder, tooltips, [])
+    tree_html = draw_layout(opts, abstraction, width, height, 0, 0, folder, tooltips, [])
     tooltips = ",\n".join(json.dumps(x) + ":" + json.dumps(y, separators=(',', ':')) for x,y in tooltips.items())
 
     return """<!DOCTYPE html>

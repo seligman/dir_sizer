@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
+from utils import TempMessage, size_to_string, count_to_string
 import boto3
-from utils import TempMessage, size_to_string
 
 MAIN_SWITCH = "--s3"
 DESCRIPTION = "Scan AWS S3 for object sizes"
@@ -64,6 +64,13 @@ def split(path):
 
 def join(path):
     return "/".join(path)
+
+def dump_size(opts, value):
+    # TODO: Show this as a "cost" when running in cost mode
+    return size_to_string(value)
+
+def dump_count(opts, value):
+    return count_to_string(value)
 
 if __name__ == "__main__":
     print("This module is not meant to be run directly")

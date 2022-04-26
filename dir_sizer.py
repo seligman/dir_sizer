@@ -97,7 +97,7 @@ def main():
 
     with open(opts['output'], "wt", newline="\n", encoding="utf-8") as f:
         # TODO: Let the final size be an option
-        f.write(get_webpage(folder, 900, 600))
+        f.write(get_webpage(opts, abstraction, folder, 900, 600))
 
     print(f"All done, created {opts['output']}")
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from collections import deque
-from utils import TempMessage, size_to_string
+from utils import TempMessage, size_to_string, count_to_string
 import os
 import stat
 
@@ -42,21 +42,31 @@ def scan_folder(opts):
         # own, so track directories in a deque and recurse manually
         # Order here isn't important, it'll be sorted elsewhere, so whatever scandir
         # returns in is fine.
-        # TODO: Consider ignoring symbolic links
-        for cur in os.scandir(path):
-            try:
-                if stat.S_ISDIR(cur.stat().st_mode):
-                    # It's a directory, add it to our list ot do
-                    todo.append(cur.path)
-                else:
-                    # It's a file, add to our count and send it out
-                    total_objects += 1
-                    total_size += cur.stat().st_size
-                    msg(f"Scanning, gathered {total_objects} totaling {size_to_string(total_size)}...")
-                    yield cur.path, cur.stat().st_size
-            except (FileNotFoundError, OSError):
-                # Ignore any files we don't see (mostly dangling links)
-                pass
+        try:
+            for cur in os.scandir(path):
+                try:
+                    if stat.S_ISDIR(cur.stat().st_mode):
+                        # It's a directory, add it to our list ot do
+                        todo.append(cur.path)
+                    else:
+                        # Pull out the size before doing anything with the data
+                        # to give the exception a chance to fire
+                        size = cur.stat().st_size
+                        path = cur.path
+                        # It's a file, add to our count and send it out
+                        total_objects += 1
+                        total_size += size
+                        msg(f"Scanning, gathered {total_objects} totaling {size_to_string(total_size)}...")
+                        yield path, size
+                except (FileNotFoundError, OSError, PermissionError):
+                    # Ignore any files we don't see (mostly dangling links)
+                    # Also ignore any permission errors
+                    pass
+        except (FileNotFoundError, OSError, PermissionError):
+            # And ignore any errors on the scandir itself, do this
+            # in to seperate try/except blocks so any errors on a single
+            # file don't break an entire folder
+            pass
     msg(f"Done, saw {total_objects} totaling {size_to_string(total_size)}", newline=True)
 
 def split(path):
@@ -65,6 +75,12 @@ def split(path):
 
 def join(path):
     return os.path.sep.join(path)
+
+def dump_size(opts, value):
+    return size_to_string(value)
+
+def dump_count(opts, value):
+    return count_to_string(value)
 
 if __name__ == "__main__":
     print("This module is not meant to be run directly")
