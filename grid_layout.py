@@ -86,6 +86,7 @@ def _squarify(temp, values, current_row, width, bail):
         _squarify(temp, values, [], _get_width(temp), bail + 1)
 
 def _layout_row(temp, row_nodes):
+    # Layout elements on a row, fitting as much as possible
     x, y = temp.x, temp.y
 
     if not temp.vertical:
@@ -120,6 +121,7 @@ def _layout_row(temp, row_nodes):
     temp.current_height = 0
 
 def _calc_aspect_ratio(current_row, width):
+    # Calculate the aspect ratio for a given row in two orientations
     if len(current_row) == 0:
         return 0
     sum_of_areas = sum(x.area for x in current_row)
@@ -146,22 +148,29 @@ def _get_width(temp):
         return temp.height
 
 def get_color(depth):
+    # Return a color for a grid cell, only the depth of the cell is taken into context
     depth += 1
     hue = depth * 40
+
+    # This is a simple HSV to RGB, with constants to skew the colors to a pastel palette
     red = 0.47450980392156861 + 0.20392156862745098 * cos(0.017453292519943295 * hue)
     green = 0.52352941176470591 - 0.0803921568627451 * cos(0.017453292519943295 * hue)
     blue = 0.47254901960784312 + 0.19411764705882353 * cos(0.017453292519943295 * hue + 1.8849555921538759)
 
+    # Every other depth is closer to white to make them "pop"
     if depth % 2 == 1:
         saturation = 0.75
         red = red * saturation + 1.0 - saturation;
         green = green * saturation + 1.0 - saturation;
         blue = blue * saturation + 1.0 - saturation;
 
+    # Return the color as an HTML color
     return f"#{int(red*255):02x}{int(green*255):02x}{int(blue*255):02x}"
 
 def draw_layout(opts, abstraction, width, height, x, y, folder, tooltips, path, depth=0):
+    # Draw a layout, returning the new layout as HTML
     if width < 20 or height < 20:
+        # This cell is too small to care about
         return ""
 
     padding = 5
@@ -171,13 +180,18 @@ def draw_layout(opts, abstraction, width, height, x, y, folder, tooltips, path, 
     width -= padding * 2
     height -= padding * 2
 
+    # Track the tool tip information
     tool_id = f"t{len(tooltips)}"
     tooltips[tool_id] = [
         abstraction.join(path) if depth > 0 else "<base>",
         abstraction.dump_size(opts, folder.size),
         abstraction.dump_count(opts, folder.count),
+        # And store the raw numbers as a string for the CSV download
+        str(folder.size),
+        str(folder.count),
     ]
     
+    # And draw each cell
     output_html = ""
     if depth > 0:
         output_html += f'{"  " * depth}<div id="{tool_id}" style="'
@@ -188,6 +202,7 @@ def draw_layout(opts, abstraction, width, height, x, y, folder, tooltips, path, 
         output_html += f'background-color:{get_color(depth)}'
         output_html += f'">\n'
     else:
+        # The root cell needs to exist, but it's just a placeholder, it isn't visible
         output_html += f'{"  " * depth}<div id="{tool_id}" style="'
         output_html += f'width:{round(width)}px;'
         output_html += f'height:{round(height)}px;'
@@ -203,6 +218,7 @@ def draw_layout(opts, abstraction, width, height, x, y, folder, tooltips, path, 
     temp = plot(width, height, folder)
 
     for cur in temp:
+        # For all the sub cells, show them if they're big enough
         if cur.width >= 10 and cur.height >= 10 and cur.key is not None:
             output_html += draw_layout(
                 opts,
@@ -212,6 +228,7 @@ def draw_layout(opts, abstraction, width, height, x, y, folder, tooltips, path, 
             )
 
     if depth == 1 and path[-1] is not None:
+        # The first level off the root gets a label
         output_html += f'<div class="label">{html.escape(path[-1])}</div>'
 
     output_html += f'{"  " * depth}</div>\n'
@@ -219,18 +236,25 @@ def draw_layout(opts, abstraction, width, height, x, y, folder, tooltips, path, 
     return output_html
 
 def get_summary(opts, abstraction, folder):
+    # Turn the dict summary from the abstraction layer into a simple HTML header
     info = abstraction.get_summary(opts, folder)
     output_html = ""
     for key, value in info.items():
-        output_html += f"<b>{html.escape(key)}</b>: {html.escape(value)}<br>"
+        output_html += f"<b>{html.escape(key)}</b>: {html.escape(value)}<br>\n"
     return output_html
 
 def get_webpage(opts, abstraction, folder, width, height):
+    # Layout everything and output to HTML
     tooltips = {}
+    # Create the main HTML, along the tooltips
     tree_html = draw_layout(opts, abstraction, width, height, 0, 0, folder, tooltips, [])
+    # Create the header HTML
     summary_html = get_summary(opts, abstraction, folder)
+    # The HTML is just packages as is
+    # Use a slightly bespoked json.dump layout just to keep things compact, but still somewhat human legible
     tooltips = ",\n".join(json.dumps(x) + ":" + json.dumps(y, separators=(',', ':')) for x,y in tooltips.items())
 
+    # And the rest of the webpage is hardcoded
     return """<!DOCTYPE html>
 <html>
 <head>
@@ -244,7 +268,7 @@ div {
 }
 .tooltip {
     display: none;
-    background: #C8C8C8;
+    background: #c8c8c8;
     margin: 25px;
     padding: 10px;
     position: absolute;
@@ -262,6 +286,14 @@ div {
     opacity: 80%;
     bottom: 2px;
     right: 2px;
+}
+a {
+    color: #4040f2;
+    text-decoration: none;
+}
+a:hover {
+    color: #4040f2;
+    text-decoration: underline;
 }
 </style>
 <script>
@@ -298,10 +330,58 @@ function on_mousemove(e) {
         last = cur;
     }
 }
+function generate_csv() {
+    rows = [["Folder", "Size", "Count"]];
+    for (var key in tooltips) {
+        rows.push([tooltips[key][0], tooltips[key][3], tooltips[key][4]]);
+    }
+    export_to_csv("data.csv", rows);
+}
+function export_to_csv(filename, rows) {
+    var processRow = function (row) {
+        var finalVal = '';
+        for (var j = 0; j < row.length; j++) {
+            var innerValue = row[j] === null ? '' : row[j].toString();
+            if (row[j] instanceof Date) {
+                innerValue = row[j].toLocaleString();
+            };
+            var result = innerValue.replace(/"/g, '""');
+            if (result.search(/("|,|\\n)/g) >= 0)
+                result = '"' + result + '"';
+            if (j > 0)
+                finalVal += ',';
+            finalVal += result;
+        }
+        return finalVal + '\\n';
+    };
+
+    var csvFile = '';
+    for (var i = 0; i < rows.length; i++) {
+        csvFile += processRow(rows[i]);
+    }
+
+    var blob = new Blob([csvFile], { type: 'text/csv;charset=utf-8;' });
+    if (navigator.msSaveBlob) { // IE 10+
+        navigator.msSaveBlob(blob, filename);
+    } else {
+        var link = document.createElement("a");
+        if (link.download !== undefined) { // feature detection
+            // Browsers that support HTML5 download attribute
+            var url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    }
+}
 </script>
 </head>
 <body>
 """ + summary_html + """
+Download all <a href="#" onclick="generate_csv();">data</a>.
 <hr>
 """ + tree_html + """
 <div class="tooltip" id="tooltip">

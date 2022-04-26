@@ -2,6 +2,10 @@
 
 from utils import size_to_string, count_to_string
 
+# The "test" abstraction.  This is just hardcoded values.
+# It exists mostly for debugging use, and a simple starting point
+# to use when creating a new abstraction
+
 MAIN_SWITCH = "--test"
 DESCRIPTION = "Hardcoded test data"
 
