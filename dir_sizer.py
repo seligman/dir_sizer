@@ -113,7 +113,7 @@ def load_files(opts, abstraction):
     if opts['cache'] is not None and os.path.isfile(opts['cache']):
         db = sqlite3.connect(opts['cache'])
         for key, size in db.execute("SELECT key, size FROM files;"):
-            yield json.loads(key), size
+            yield json.loads(key), json.loads(size)
         db.close()
     else:
         db, sql = None, None
@@ -126,7 +126,7 @@ def load_files(opts, abstraction):
         for filename, size in abstraction.scan_folder(opts):
             yield filename, size
             if sql is not None:
-                sql.execute(json.dumps(filename), size)
+                sql.execute(json.dumps(filename), json.dumps(size))
 
         if sql is not None:
             sql.finish()
