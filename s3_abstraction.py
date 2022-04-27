@@ -2,10 +2,13 @@
 
 from utils import TempMessage, size_to_string, count_to_string, register_abstraction
 try:
+    # Wrap boto3 in a try/except block so we can still show the help, but
+    # only fail if the user tries to call into S3
     import boto3
-    register_abstraction(__name__)
+    IMPORTS_OK = True
 except:
-    print("WARNING: Unable to import boto3, the S3 interface will be disabled.")
+    IMPORTS_OK = False
+register_abstraction(__name__)
 
 MAIN_SWITCH = "--s3"
 DESCRIPTION = "Scan AWS S3 for object sizes"
@@ -13,6 +16,11 @@ DESCRIPTION = "Scan AWS S3 for object sizes"
 # TODO: A flag to sort by "cost"
 
 def handle_args(opts, args):
+    if not IMPORTS_OK:
+        opts['show_help'] = True
+        print("ERROR: Unable to import boto3, unable to call S3 APIs!")
+        return args
+
     while True:
         if len(args) >= 2 and args[0] == "--profile":
             opts['s3_profile'] = args[1]
@@ -33,11 +41,13 @@ def handle_args(opts, args):
     return args
 
 def get_help():
-    return """
+    return f"""
         --profile <value> = AWS CLI profile name to use (optional)
         --bucket <value>  = S3 Bucket to scan
         --prefix <value>  = Prefix to start scanning from (optional)
-    """
+    """ + ("" if IMPORTS_OK else """
+        WARNING: boto3 import failed, module will not work correctly!
+    """)
 
 def scan_folder(opts):
     if 's3_profile' in opts:
