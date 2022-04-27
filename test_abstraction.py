@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-from utils import size_to_string, count_to_string
+from utils import size_to_string, count_to_string, register_abstraction
+register_abstraction(__name__)
 
 # The "test" abstraction.  This is just hardcoded values.
 # It exists mostly for debugging use, and a simple starting point

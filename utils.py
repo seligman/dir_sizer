@@ -3,6 +3,11 @@
 from datetime import datetime, timedelta
 from collections import defaultdict
 import json
+import sys
+
+ALL_ABSTRACTIONS = []
+def register_abstraction(module_name):
+    ALL_ABSTRACTIONS.append(sys.modules[module_name])
 
 def count_to_string(value):
     return f"{value:,}"

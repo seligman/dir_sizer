@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
 from collections import deque
-from utils import TempMessage, size_to_string, count_to_string
+from utils import TempMessage, size_to_string, count_to_string, register_abstraction
 import os
 import stat
+register_abstraction(__name__)
 
 MAIN_SWITCH = "--local"
 DESCRIPTION = "Scan local file system"

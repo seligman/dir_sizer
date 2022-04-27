@@ -1,21 +1,17 @@
 #!/usr/bin/env python3
 
 from grid_layout import get_webpage
-from utils import Folder, BatchingSql
+from utils import Folder, BatchingSql, ALL_ABSTRACTIONS
 import json
 import os
 import sqlite3
 import sys
 import textwrap
 
-import s3_abstraction
+# Abstractions will self-register if they're able
 import local_abstraction
-import test_abstraction
-ABSTRACTIONS = [
-    s3_abstraction,
-    local_abstraction,
-    test_abstraction,       # TODO: Remove this when it's no longer useful
-]
+import s3_abstraction
+import test_abstraction # TODO: Remove this when it's no longer needed
 
 def set_output(opts, args):
     if len(args) > 0:
@@ -49,6 +45,12 @@ def main():
         '--cache': set_cache,
     }
 
+    if len(sys.argv) == 1:
+        opts['show_help'] = True
+    else:
+        if sys.argv[1] in {"--help", "-h", "/?", "/h"}:
+            opts['show_help'] = True
+
     while len(args) > 0 and not opts['show_help']:
         if args[0] in flags:
             temp = flags[args[0]]
@@ -56,7 +58,7 @@ def main():
             args = temp(opts, args)
         else:
             found = False
-            for cur in ABSTRACTIONS:
+            for cur in ALL_ABSTRACTIONS:
                 if cur.MAIN_SWITCH == args[0]:
                     found = True
                     if opts['target'] is not None:
@@ -72,7 +74,7 @@ def main():
                 opts['show_help'] = True
 
     if not opts['show_help'] and opts['target'] is None:
-        print("ERROR: No target scanner module found")
+        print("ERROR: No target scanner module specified")
         opts['show_help'] = True
 
     if not opts['show_help'] and opts['output'] is None:
@@ -86,7 +88,7 @@ def main():
             --output <value> = Filename to output results to
             --cache <value>  = Store and use cache of files in <value> file (optional)
         """))
-        for cur in ABSTRACTIONS:
+        for cur in ALL_ABSTRACTIONS:
             print(f"{cur.MAIN_SWITCH} = {cur.DESCRIPTION}")
             msg = textwrap.dedent(cur.get_help()).strip()
             for row in msg.split("\n"):

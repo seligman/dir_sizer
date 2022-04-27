@@ -11,7 +11,7 @@ Items needed to get past an alpha release:
 - [ ] Improve comments
 - [ ] Add a requirements.txt file to bring in all needed packages
 - [ ] Test, test, test
-- [ ] If an abstraction is missing a necessary package, hide it
+- [x] If an abstraction is missing a necessary package, hide it
 - [x] Add more details to the webpage to show overview, etc
 - [ ] Some way of parsing AWS Inventory Reports for larger buckets
 

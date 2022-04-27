@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 
-from utils import TempMessage, size_to_string, count_to_string
-import boto3
+from utils import TempMessage, size_to_string, count_to_string, register_abstraction
+try:
+    import boto3
+    register_abstraction(__name__)
+except:
+    print("WARNING: Unable to import boto3, the S3 interface will be disabled.")
 
 MAIN_SWITCH = "--s3"
 DESCRIPTION = "Scan AWS S3 for object sizes"
