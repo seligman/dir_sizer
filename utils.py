@@ -71,8 +71,12 @@ class Folder:
 
     def add(self, filename, size):
         if len(filename) == 1:
-            self.count += 1
-            self.size += size
+            if isinstance(size, tuple):
+                self.count += size[1]
+                self.size += size[0]
+            else:
+                self.count += 1
+                self.size += size
         else:
             self[filename[0]].add(filename[1:], size)
 
@@ -129,6 +133,10 @@ class BatchingSql:
             self.db.executemany(self.sql, self.todo)
             self.db.commit()
             self.todo = []
+
+def chunks(values, size):
+    for i in range(0, len(values), size):
+        yield values[i : i + size]
 
 if __name__ == "__main__":
     print("This module is not meant to be run directly")

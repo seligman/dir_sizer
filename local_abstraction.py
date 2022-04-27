@@ -10,7 +10,7 @@ MAIN_SWITCH = "--local"
 DESCRIPTION = "Scan local file system"
 
 def handle_args(opts, args):
-    while True:
+    while not opts['show_help']:
         if len(args) >= 2 and args[0] == "--base":
             opts['lfs_base'] = args[1]
             args = args[2:]
