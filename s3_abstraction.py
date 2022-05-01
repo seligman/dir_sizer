@@ -176,8 +176,8 @@ def scan_folder(opts):
             final_metrics = {}
             
             # Call into cloudwatch as few times as possible
-            for queries_chunk in chunks(queries, 100):
-                msg(f"Scanning, got {len(queries_chunk)} stats for {region}, done with {len(stats)} buckets...")
+            for chunk_page, queries_chunk in enumerate(chunks(queries, 100)):
+                msg(f"Scanning, got {len(queries_chunk)} stats for {region}, on page {chunk_page+1}, done with {len(stats)} buckets...")
                 metrics = cw.get_metric_data(
                     MetricDataQueries=queries_chunk,
                     StartTime=start_date,
