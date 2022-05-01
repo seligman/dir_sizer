@@ -3,6 +3,7 @@
 from collections import defaultdict
 from datetime import datetime, timedelta
 from utils import TempMessage, size_to_string, count_to_string, register_abstraction, chunks
+from aws_constants import S3_COST_CLASSES
 try:
     # Wrap boto3 in a try/except block so we can still show the help, but
     # only fail if the user tries to call into S3
@@ -89,6 +90,7 @@ def scan_folder(opts):
             for cur in page['Contents']:
                 total_objects += 1
                 total_size += cur['Size']
+                print(cur)
                 yield cur['Key'][prefix_len:].split("/"), cur['Size']
             msg(f"Scanning, gathered {total_objects} totaling {size_to_string(total_size)}...")
     else:
@@ -117,14 +119,10 @@ def scan_folder(opts):
             else:
                 cw = boto3.client('cloudwatch', region_name=region)
 
-            # These are all of the metrics we care about
-            storages = [
-                ('StandardStorage', 'BucketSizeBytes', True), 
-                ('StandardIAStorage', 'BucketSizeBytes', True), 
-                ('GlacierStorage', 'BucketSizeBytes', True), 
-                ('DeepArchiveStorage', 'BucketSizeBytes', True), 
-                ('AllStorageTypes', 'NumberOfObjects', False), 
-            ]
+            # Pull out all of the possible cost classes
+            storages = [(x['cw'], 'BucketSizeBytes', True) for x in S3_COST_CLASSES]
+            # And ask for the number of objects in each bucket as well
+            storages.append(('AllStorageTypes', 'NumberOfObjects', False))
 
             # For each bucket in this region, add a request for each metric we want to track
             for bucket in buckets[region]:
@@ -175,13 +173,24 @@ def scan_folder(opts):
                     # All of the values we want are really integers, so treat them as such
                     stats[bucket][storage] = int(value)
 
-        for bucket, stats in stats.items():
-            count = stats['AllStorageTypes']
-            size = sum(stats.values()) - count
-            if size > 0:
-                total_objects += count
-                total_size += size
-                yield [bucket, ""], (size, count)
+        # Create summary
+        for bucket, bucket_stats in stats.items():
+            size, count = 0, 0
+            for storage, _metric_name, cost in storages:
+                # Cost elements are storage in bytes, non-cost is the count (should only be one)
+                if cost:
+                    size += bucket_stats.get(storage, 0)
+                else:
+                    count += bucket_stats.get(storage, 0)
+            # Store the results
+            bucket_stats["_count"] = count
+            bucket_stats["_size"] = size
+
+        for bucket, bucket_stats in stats.items():
+            if bucket_stats["_size"] > 0 and bucket_stats["_count"] > 0:
+                total_objects += bucket_stats["_count"]
+                total_size += bucket_stats["_size"]
+                yield [bucket, ""], (bucket_stats["_size"], bucket_stats["_count"])
 
     msg(f"Done, saw {total_objects} totaling {size_to_string(total_size)}", newline=True)
 
