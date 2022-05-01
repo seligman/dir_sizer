@@ -18,7 +18,7 @@ Items needed to get past an alpha release:
 Wish list items in a future version:
 
 - [x] Add or extend the S3 abstraction to show all buckets in one pass
-- [ ] Add a "cost" size option to S3 to size the bucket by costs
+- [x] Add a "cost" size option to S3 to size the bucket by costs
 - [ ] Add a SSH abstraction
 - [ ] Add a Google Storage abstraction
 - [ ] Add an Azure Blob abstraction
