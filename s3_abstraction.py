@@ -36,6 +36,9 @@ def handle_args(opts, args):
         elif len(args) >= 1 and args[0] == "--all_buckets":
             opts['s3_all_buckets'] = True
             args = args[1:]
+        elif len(args) >= 1 and args[0] == "--cost":
+            opts['s3_cost'] = True
+            args = args[1:]
         else:
             break
     
@@ -63,9 +66,15 @@ def get_help():
         --bucket <value>  = S3 Bucket to scan
         --prefix <value>  = Prefix to start scanning from (optional)
         --all_buckets     = Show size of all buckets (only if --bucket/--prefix isn't used)
+        --cost            = Count cost instead of size for objects
     """ + ("" if IMPORTS_OK else """
         WARNING: boto3 import failed, module will not work correctly!
     """)
+
+def get_bucket_location(s3, bucket):
+    location = s3.get_bucket_location(Bucket=bucket)['LocationConstraint']
+    # us-east-1 and eu-west-1 are odd, they have weird values from this API, so map to the proper region
+    location = {None: 'us-east-1', 'EU': 'eu-west-1'}.get(location, location)
 
 def scan_folder(opts):
     if 's3_profile' in opts:
@@ -85,12 +94,17 @@ def scan_folder(opts):
         if 's3_prefix' in opts:
             args['Prefix'] = opts['s3_prefix']
             prefix_len = len(opts['s3_prefix'])
+        
+        if opts.get('s3_cost', False):
+            location = get_bucket_location(s3, opts['s3_bucket'])
+        else:
+            location = None
 
         for page in paginator.paginate(**args):
             for cur in page['Contents']:
                 total_objects += 1
                 total_size += cur['Size']
-                print(cur)
+                # TODO: StorageClass
                 yield cur['Key'][prefix_len:].split("/"), cur['Size']
             msg(f"Scanning, gathered {total_objects} totaling {size_to_string(total_size)}...")
     else:
@@ -99,9 +113,7 @@ def scan_folder(opts):
         for i, bucket in enumerate(s3.list_buckets()['Buckets']):
             msg(f"Scanning, finding buckets, gathered data for {i} buckets...")
             bucket = bucket['Name']
-            location = s3.get_bucket_location(Bucket=bucket)['LocationConstraint']
-            # us-east-1 and eu-west-1 are odd, they have weird values from this API, so map to the proper region
-            location = {None: 'us-east-1', 'EU': 'eu-west-1'}.get(location, location)
+            location = get_bucket_location(s3, bucket)
             buckets[location].append(bucket)
 
         # The range to query from CloudWatch, basically, get the latest metric for each bucket, 
