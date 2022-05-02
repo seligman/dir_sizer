@@ -239,9 +239,12 @@ def get_summary(opts, abstraction, folder):
     # Turn the dict summary from the abstraction layer into a simple HTML header
     info = abstraction.get_summary(opts, folder)
     output_html = ""
+    location = None
     for key, value in info.items():
         output_html += f"<b>{html.escape(key)}</b>: {html.escape(value)}<br>\n"
-    return output_html
+        if key == "Location":
+            location = value
+    return output_html, location
 
 def get_webpage(opts, abstraction, folder, width, height):
     # Layout everything and output to HTML
@@ -249,7 +252,12 @@ def get_webpage(opts, abstraction, folder, width, height):
     # Create the main HTML, along the tooltips
     tree_html = draw_layout(opts, abstraction, width, height, 0, 0, folder, tooltips, [])
     # Create the header HTML
-    summary_html = get_summary(opts, abstraction, folder)
+    summary_html, location = get_summary(opts, abstraction, folder)
+    # Pull out the page title
+    if location is not None:
+        title = "Dir Sizer - " + html.escape(location)
+    else:
+        title = "Dir Sizer"
     # The HTML is just packages as is
     # Use a slightly bespoked json.dump layout just to keep things compact, but still somewhat human legible
     tooltips = ",\n".join(json.dumps(x) + ":" + json.dumps(y, separators=(',', ':')) for x,y in tooltips.items())
@@ -258,7 +266,10 @@ def get_webpage(opts, abstraction, folder, width, height):
     return """<!DOCTYPE html>
 <html>
 <head>
-<title>Dir Sizer</title>
+<link rel="apple-touch-icon" sizes="180x180" href="https://raw.githubusercontent.com/seligman/dir_sizer/master/images/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://raw.githubusercontent.com/seligman/dir_sizer/master/images/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="https://raw.githubusercontent.com/seligman/dir_sizer/master/images/favicon-16x16.png">
+<title>""" + title + """</title>
 <style>
 div {
     border-radius:5px;
