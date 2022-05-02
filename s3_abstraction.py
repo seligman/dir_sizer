@@ -291,11 +291,11 @@ def get_summary(opts, folder):
             location = "All buckets for " + ", ".join(temp) + " " + ("profile" if len(temp) == 1 else "profiles")
         else:
             location = "All buckets"
-    return {
-        "Location": location,
-        "Total objects": dump_count(opts, folder.count),
-        "Total cost" if opts.get('s3_cost', False) else "Total size": dump_size(opts, folder.size),
-    }
+    return [
+        ("Location", location),
+        ("Total objects", dump_count(opts, folder.count)),
+        ("Total cost" if opts.get('s3_cost', False) else "Total size", dump_size(opts, folder.size)),
+    ]
 
 if __name__ == "__main__":
     print("This module is not meant to be run directly")

@@ -240,9 +240,9 @@ def get_summary(opts, abstraction, folder):
     info = abstraction.get_summary(opts, folder)
     output_html = ""
     location = None
-    for key, value in info.items():
+    for key, value in info:
         output_html += f"<b>{html.escape(key)}</b>: {html.escape(value)}<br>\n"
-        if key == "Location":
+        if location is None:
             location = value
     return output_html, location
 

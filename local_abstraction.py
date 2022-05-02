@@ -14,6 +14,9 @@ def handle_args(opts, args):
         if len(args) >= 2 and args[0] == "--base":
             opts['lfs_base'] = args[1]
             args = args[2:]
+        elif len(args) >= 1 and args[0] == "--follow_links":
+            opts['lfs_follow_links'] = True
+            args = args[1:]
         else:
             break
     
@@ -26,7 +29,27 @@ def handle_args(opts, args):
 def get_help():
     return """
         --base <value> = Base path to scan for files
+        --follow_links = Follow into links and junctions (optional)
     """
+
+def is_link(dn):
+    # Check to see if this is a symbolic link on Unix systems
+    if os.path.islink(dn):
+        # Simple case, it's a link
+        return True
+    else:
+        # On Windows, the story is a bit more complex, try to read
+        # the junction information.  This same technique works
+        # for Unix platforms, but hopefully the islink call
+        # above will short circuit it in some cases
+        try:
+            os.readlink(dn)
+            # If we got this far, then readlink worked, which
+            # means dn is a link or junction
+            return True
+        except:
+            # It's something else, either a raw file, or directory
+            return False
 
 def scan_folder(opts):
     msg = TempMessage()
@@ -47,8 +70,15 @@ def scan_folder(opts):
             for cur in os.scandir(path):
                 try:
                     if stat.S_ISDIR(cur.stat().st_mode):
-                        # It's a directory, add it to our list ot do
-                        todo.append((cur.path, path_parts + [cur.name]))
+                        use_directory = True
+                        if not opts.get("lfs_follow_links", False):
+                            # We shouldn't follow into links and junctions, so see if this is junction
+                            if is_link(cur.path):
+                                # It's a link, so don't use it
+                                use_directory = False
+                        if use_directory:
+                            # It's a directory, add it to our list ot do
+                            todo.append((cur.path, path_parts + [cur.name]))
                     else:
                         # Pull out the size before doing anything with the data
                         # to give the exception a chance to fire
@@ -84,11 +114,11 @@ def dump_count(opts, value):
     return count_to_string(value)
 
 def get_summary(opts, folder):
-    return {
-        "Directory": opts['lfs_base'],
-        "Total files": dump_count(opts, folder.count),
-        "Total size": dump_size(opts, folder.size),
-    }
+    return [
+        ("Directory", opts['lfs_base']),
+        ("Total files", dump_count(opts, folder.count)),
+        ("Total size", dump_size(opts, folder.size)),
+    ]
 
 if __name__ == "__main__":
     print("This module is not meant to be run directly")
