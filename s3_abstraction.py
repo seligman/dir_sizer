@@ -4,6 +4,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from utils import TempMessage, size_to_string, count_to_string, register_abstraction, chunks
 from aws_constants import S3_COST_CLASSES
+from multiprocessing import Pool
 import json
 try:
     # Wrap boto3 in a try/except block so we can still show the help, but
@@ -67,10 +68,23 @@ def get_help():
         --bucket <value>  = S3 Bucket to scan
         --prefix <value>  = Prefix to start scanning from (optional)
         --all_buckets     = Show size of all buckets (only if --bucket/--prefix isn't used)
+                            (--profile may be a comma delimited list of profiles for this mode)
         --cost            = Count cost instead of size for objects
     """ + ("" if IMPORTS_OK else """
         WARNING: boto3 import failed, module will not work correctly!
     """)
+
+def get_s3(profile):
+    if len(profile):
+        return boto3.Session(profile_name=profile).client('s3')
+    else:
+        return boto3.client('s3')
+
+def get_cw(profile, region):
+    if len(profile):
+        return boto3.Session(profile_name=profile).client('cloudwatch', region_name=region)
+    else:
+        return boto3.client('cloudwatch', region_name=region)
 
 def get_bucket_location(s3, bucket):
     location = s3.get_bucket_location(Bucket=bucket)['LocationConstraint']
@@ -78,18 +92,22 @@ def get_bucket_location(s3, bucket):
     location = {None: 'us-east-1', 'EU': 'eu-west-1'}.get(location, location)
     return location
 
-def scan_folder(opts):
-    if 's3_profile' in opts:
-        s3 = boto3.Session(profile_name=opts['s3_profile']).client('s3')
-    else:
-        s3 = boto3.client('s3')
+def get_bucket_location_worker(job):
+    # Helper to handle lookup on a different process
+    profile, bucket = job
+    s3 = get_s3(profile)
+    location = get_bucket_location(s3, bucket)
+    return bucket, location
 
+def scan_folder(opts):
     msg = TempMessage()
     msg("Scanning...", force=True)
 
     total_objects, total_size = 0, 0
     if 's3_bucket' in opts:
         # Enumerate the objects in the target bucket
+        s3 = get_s3(opts.get("s3_profile", ""))
+
         paginator = s3.get_paginator("list_objects_v2")
         args = {"Bucket": opts['s3_bucket']}
         prefix_len = 0
@@ -123,12 +141,15 @@ def scan_folder(opts):
             msg(f"Scanning, gathered {total_objects} totaling {dump_size(opts, total_size)}...")
     else:
         # List all the buckets, break out by region
-        buckets = defaultdict(list)
-        for i, bucket in enumerate(s3.list_buckets()['Buckets']):
-            msg(f"Scanning, finding buckets, gathered data for {i} buckets...")
-            bucket = bucket['Name']
-            location = get_bucket_location(s3, bucket)
-            buckets[location].append(bucket)
+        buckets = defaultdict(lambda: defaultdict(list))
+        seen_buckets = 0
+        for profile in opts.get("s3_profile", "").split(","):
+            s3 = get_s3(profile)
+            with Pool() as pool:
+                for bucket, location in pool.imap_unordered(get_bucket_location_worker, [(profile, x['Name']) for x in s3.list_buckets()['Buckets']]):
+                    seen_buckets += 1
+                    msg(f"Scanning, finding buckets, gathered data for {seen_buckets} buckets...")
+                    buckets[profile][location].append(bucket)
 
         # The range to query from CloudWatch, basically, get the latest metric for each bucket, 
         # with some padding to handle the daily roll off of data
@@ -138,100 +159,100 @@ def scan_folder(opts):
         stats = defaultdict(lambda: defaultdict(dict))
         bucket_to_region = {}
 
-        for region in buckets:
-            queries = []
-            bucket_ids = {}
-            if 's3_profile' in opts:
-                cw = boto3.Session(profile_name=opts['s3_profile']).client('cloudwatch', region_name=region)
+        for profile in buckets:
+            for region in buckets[profile]:
+                queries = []
+                bucket_ids = {}
+                cw = get_cw(profile, region)
+
+                # Pull out all of the possible cost classes
+                storages = [(x['cw'], 'BucketSizeBytes', True) for x in S3_COST_CLASSES]
+                # And ask for the number of objects in each bucket as well
+                storages.append(('AllStorageTypes', 'NumberOfObjects', False))
+
+                # For each bucket in this region, add a request for each metric we want to track
+                for bucket in buckets[profile][region]:
+                    bucket_to_region[bucket] = region
+                    bucket_ids[bucket] = "%02d" % (len(bucket_ids),)
+                    for storage, metric_name, _cost in storages:
+                        queries.append({
+                                'Id': 'i' + bucket_ids[bucket] + storage,
+                                'MetricStat': {
+                                    'Metric': {
+                                        'Namespace': 'AWS/S3',
+                                        'MetricName': metric_name,
+                                        'Dimensions': [
+                                            {'Name': 'StorageType', 'Value': storage},
+                                            {'Name': 'BucketName', 'Value': bucket},
+                                        ],
+                                    },
+                                    'Period': 86400,
+                                    'Stat': 'Average',
+                                }
+                            })
+
+                # A place to store the metrics we'll gather up
+                final_metrics = {}
+                
+                # Call into cloudwatch as few times as possible
+                for chunk_page, queries_chunk in enumerate(chunks(queries, 100)):
+                    msg(f"Scanning, got {len(queries_chunk)} stats for {region}, on page {chunk_page+1}, done with {len(stats)} buckets...")
+                    metrics = cw.get_metric_data(
+                        MetricDataQueries=queries_chunk,
+                        StartTime=start_date,
+                        EndTime=start_date + timedelta(days=1)
+                    )
+                    # The metrics are returned in a list, turn it into a dictionary to make things easier
+                    for cur in metrics['MetricDataResults']:
+                        final_metrics[cur['Id']] = cur
+
+                # And for each bucket, pull out the metrics into our final stats object
+                for bucket in buckets[profile][region]:
+                    temp_cur = start_date.strftime("%Y-%m-%d")
+                    for storage, _metric_name, _cost in storages:
+                        temp_metrics = final_metrics['i' + bucket_ids[bucket] + storage]
+                        # Find the metric for the current day, treat lack of a value as 0
+                        value = 0.0
+                        for i in range(len(temp_metrics['Timestamps'])):
+                            if temp_metrics['Timestamps'][i].strftime("%Y-%m-%d") == temp_cur:
+                                value = temp_metrics['Values'][i]
+                                break
+                        # All of the values we want are really integers, so treat them as such
+                        stats[bucket][storage] = int(value)
+
+            # Load cost data if we want to use it
+            if opts.get('s3_cost', False):
+                costs = {}
+                metric_to_cost = {x['cw']: x['desc'] for x in S3_COST_CLASSES}
+                with open("s3_pricing_data.json") as f:
+                    temp = json.load(f)
+                    # Lookup table to look up a S3 Storage Class to price per GiB
+                    for region in buckets[profile]:
+                        if region not in temp:
+                            raise Exception(f"Unknown costs for region {region}!")
+                        costs[region] = {x['cw']: float(temp[region][x['desc']]) for x in S3_COST_CLASSES}
             else:
-                cw = boto3.client('cloudwatch', region_name=region)
+                costs = None
+                metric_to_cost = None
 
-            # Pull out all of the possible cost classes
-            storages = [(x['cw'], 'BucketSizeBytes', True) for x in S3_COST_CLASSES]
-            # And ask for the number of objects in each bucket as well
-            storages.append(('AllStorageTypes', 'NumberOfObjects', False))
-
-            # For each bucket in this region, add a request for each metric we want to track
-            for bucket in buckets[region]:
-                bucket_to_region[bucket] = region
-                bucket_ids[bucket] = "%02d" % (len(bucket_ids),)
-                for storage, metric_name, _cost in storages:
-                    queries.append({
-                            'Id': 'i' + bucket_ids[bucket] + storage,
-                            'MetricStat': {
-                                'Metric': {
-                                    'Namespace': 'AWS/S3',
-                                    'MetricName': metric_name,
-                                    'Dimensions': [
-                                        {'Name': 'StorageType', 'Value': storage},
-                                        {'Name': 'BucketName', 'Value': bucket},
-                                    ],
-                                },
-                                'Period': 86400,
-                                'Stat': 'Average',
-                            }
-                        })
-
-            # A place to store the metrics we'll gather up
-            final_metrics = {}
-            
-            # Call into cloudwatch as few times as possible
-            for chunk_page, queries_chunk in enumerate(chunks(queries, 100)):
-                msg(f"Scanning, got {len(queries_chunk)} stats for {region}, on page {chunk_page+1}, done with {len(stats)} buckets...")
-                metrics = cw.get_metric_data(
-                    MetricDataQueries=queries_chunk,
-                    StartTime=start_date,
-                    EndTime=start_date + timedelta(days=1)
-                )
-                # The metrics are returned in a list, turn it into a dictionary to make things easier
-                for cur in metrics['MetricDataResults']:
-                    final_metrics[cur['Id']] = cur
-
-            # And for each bucket, pull out the metrics into our final stats object
-            for bucket in buckets[region]:
-                temp_cur = start_date.strftime("%Y-%m-%d")
-                for storage, _metric_name, _cost in storages:
-                    temp_metrics = final_metrics['i' + bucket_ids[bucket] + storage]
-                    # Find the metric for the current day, treat lack of a value as 0
-                    value = 0.0
-                    for i in range(len(temp_metrics['Timestamps'])):
-                        if temp_metrics['Timestamps'][i].strftime("%Y-%m-%d") == temp_cur:
-                            value = temp_metrics['Values'][i]
-                            break
-                    # All of the values we want are really integers, so treat them as such
-                    stats[bucket][storage] = int(value)
-
-        # Load cost data if we want to use it
-        if opts.get('s3_cost', False):
-            costs = {}
-            metric_to_cost = {x['cw']: x['desc'] for x in S3_COST_CLASSES}
-            with open("s3_pricing_data.json") as f:
-                temp = json.load(f)
-                # Lookup table to look up a S3 Storage Class to price per GiB
-                for region in buckets:
-                    if region not in temp:
-                        raise Exception(f"Unknown costs for region {region}!")
-                    costs[region] = {x['cw']: float(temp[region][x['desc']]) for x in S3_COST_CLASSES}
-        else:
-            costs = None
-            metric_to_cost = None
-
-        # Create summary
-        for bucket, bucket_stats in stats.items():
-            size, count = 0, 0
-            for storage, _metric_name, cost in storages:
-                # Cost elements are storage in bytes, non-cost is the count (should only be one)
-                if cost:
-                    if costs is None:
-                        size += bucket_stats.get(storage, 0)
-                    else:
-                        # This is (<size> / 1 GiB) * <price per GiB>
-                        size += (bucket_stats.get(storage, 0) / 1073741824) * costs[bucket_to_region[bucket]][storage]
-                else:
-                    count += bucket_stats.get(storage, 0)
-            # Store the results
-            bucket_stats["_count"] = count
-            bucket_stats["_size"] = size
+            # Create summary
+            for bucket, bucket_stats in stats.items():
+                # Ignore buckets we've already seen on a previous profile run
+                if "_count" not in bucket_stats:
+                    size, count = 0, 0
+                    for storage, _metric_name, cost in storages:
+                        # Cost elements are storage in bytes, non-cost is the count (should only be one)
+                        if cost:
+                            if costs is None:
+                                size += bucket_stats.get(storage, 0)
+                            else:
+                                # This is (<size> / 1 GiB) * <price per GiB>
+                                size += (bucket_stats.get(storage, 0) / 1073741824) * costs[bucket_to_region[bucket]][storage]
+                        else:
+                            count += bucket_stats.get(storage, 0)
+                    # Store the results
+                    bucket_stats["_count"] = count
+                    bucket_stats["_size"] = size
 
         for bucket, bucket_stats in stats.items():
             if bucket_stats["_size"] > 0 and bucket_stats["_count"] > 0:
@@ -257,8 +278,16 @@ def dump_count(opts, value):
     return count_to_string(value)
 
 def get_summary(opts, folder):
+    if 's3_bucket' in opts:
+        location = "s3://" + opts['s3_bucket'] + "/" + opts.get('s3_prefix', "")
+    else:
+        if 's3_profile' in opts:
+            temp = opts['s3_profile'].split(",")
+            location = "All buckets for " + ", ".join(temp) + " " + ("profile" if len(temp) == 1 else "profiles")
+        else:
+            location = "All buckets"
     return {
-        "Location": ("s3://" + opts['s3_bucket'] + "/" + opts.get('s3_prefix', "")) if 's3_bucket' in opts else "All Buckets",
+        "Location": location,
         "Total objects": dump_count(opts, folder.count),
         "Total cost" if opts.get('s3_cost', False) else "Total size": dump_size(opts, folder.size),
     }
