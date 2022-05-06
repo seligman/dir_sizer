@@ -6,6 +6,10 @@ from utils import size_to_string, count_to_string
 import html
 import json
 
+# Different scale modes for the webpage
+AUTO_SCALE = "AUTO_SCALE"   # Attempt to auto scale to the browser's viewport
+SET_SIZE = "SET_SIZE"       # Use the width/height as a hard-coded size
+
 class TreeMapNode:
     # A single node on the tree view of nodes
     __slots__ = ("x", "y", "width", "height", "current_height", "vertical", "area", "value", "output", "key")
@@ -167,18 +171,20 @@ def get_color(depth):
     # Return the color as an HTML color
     return f"#{int(red*255):02x}{int(green*255):02x}{int(blue*255):02x}"
 
-def draw_layout(opts, abstraction, width, height, x, y, folder, tooltips, path, depth=0):
+def draw_layout(opts, abstraction, width, height, x, y, scale_mode, folder, tooltips, path, depth=0, other=None):
     # Draw a layout, returning the new layout as HTML
     if width < 20 or height < 20:
         # This cell is too small to care about
         return ""
 
-    padding = 5
-
-    x += padding
-    y += padding
-    width -= padding * 2
-    height -= padding * 2
+    # Make this cell's width/height visible to the children so they 
+    # can size the grid based off the idealized size
+    next_other = {
+        "x": x,
+        "y": y,
+        "width": width,
+        "height": height,
+    }
 
     # Track the tool tip information
     tool_id = f"t{len(tooltips)}"
@@ -193,29 +199,51 @@ def draw_layout(opts, abstraction, width, height, x, y, folder, tooltips, path, 
     
     # And draw each cell
     output_html = ""
-    if depth > 0:
-        output_html += f'{"  " * depth}<div id="{tool_id}" style="'
+    output_html += f'{"  " * depth}<div id="{tool_id}" style="'
+
+    if scale_mode == AUTO_SCALE:
+        if depth == 0:
+            output_html += f'width:calc(100vw - 32px);'
+            output_html += f'height:calc(100vh - 32px);'
+        else:
+            # Other levels are a percent offset, based off the idealized viewport size
+            output_html += f'width:{round(width / other["width"] * 100, 2)}%;'
+            output_html += f'height:{round(height / other["height"] * 100, 2)}%;'
+            output_html += f'left:{round(x / other["width"] * 100, 2)}%;'
+            output_html += f'top:{round(y / other["height"] * 100, 2)}%;'
+    elif scale_mode == SET_SIZE:
         output_html += f'width:{round(width)}px;'
         output_html += f'height:{round(height)}px;'
-        output_html += f'left:{round(x)}px;'
-        output_html += f'top:{round(y)}px;'
+        if depth > 0:
+            output_html += f'left:{round(x)}px;'
+            output_html += f'top:{round(y)}px;'
+    else:
+        raise Exception("Unknown scale mode: " + scale_mode)
+
+    if depth > 0:
         output_html += f'background-color:{get_color(depth)}'
         output_html += f'">\n'
     else:
         # The root cell needs to exist, but it's just a placeholder, it isn't visible
-        output_html += f'{"  " * depth}<div id="{tool_id}" style="'
-        output_html += f'width:{round(width)}px;'
-        output_html += f'height:{round(height)}px;'
         output_html += f'border-style:none'
         output_html += f'">\n'
 
-    x = 0
-    y = 0
-
-    width -= 1
-    height -= 1
+    if scale_mode == SET_SIZE:
+        # Remove the offset for the border, because we'll have less space
+        width -= 2
+        height -= 2
 
     temp = plot(width, height, folder)
+
+    # Ensure all the child elements have padding
+    padding = 5
+    for cur in temp:
+        x, y, right, bottom = cur.x, cur.y, cur.x + cur.width, cur.y + cur.height
+        x += padding
+        y += padding
+        right -= padding
+        bottom -= padding
+        cur.x, cur.y, cur.width, cur.height = x, y, right - x, bottom - y
 
     for cur in temp:
         # For all the sub cells, show them if they're big enough
@@ -223,8 +251,12 @@ def draw_layout(opts, abstraction, width, height, x, y, folder, tooltips, path, 
             output_html += draw_layout(
                 opts,
                 abstraction, 
-                cur.width, cur.height, cur.x + x, cur.y + y, 
-                folder[cur.key], tooltips, path + [cur.key], depth + 1
+                cur.width, cur.height, cur.x, cur.y, scale_mode,
+                folder[cur.key], 
+                tooltips, 
+                path + [cur.key], 
+                depth=depth + 1,
+                other=next_other,
             )
 
     if depth == 1 and path[-1] is not None:
@@ -246,11 +278,11 @@ def get_summary(opts, abstraction, folder):
             location = value
     return output_html, location
 
-def get_webpage(opts, abstraction, folder, width, height):
+def get_webpage(opts, abstraction, folder, width, height, scale_mode):
     # Layout everything and output to HTML
     tooltips = {}
     # Create the main HTML, along the tooltips
-    tree_html = draw_layout(opts, abstraction, width, height, 0, 0, folder, tooltips, [])
+    tree_html = draw_layout(opts, abstraction, width, height, 0, 0, scale_mode, folder, tooltips, [])
     # Create the header HTML
     summary_html, location = get_summary(opts, abstraction, folder)
     # Pull out the page title
@@ -276,6 +308,9 @@ div {
     border-width:1px;
     border-style:solid;
     position:absolute;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box;
 }
 .tooltip {
     display: none;
@@ -317,8 +352,6 @@ function safe_html(value) {
 }
 function on_mousemove(e) {
     var tooltip = document.getElementById("tooltip");
-    tooltip.style.left = e.pageX + 'px';
-    tooltip.style.top = e.pageY + 'px';
     var cur = e.srcElement;
     if (cur.tagName != "DIV" || !(cur.id in tooltips)) {
         cur = null;
@@ -340,6 +373,11 @@ function on_mousemove(e) {
         }
         last = cur;
     }
+
+    var width = document.body.clientWidth;
+    var height = document.body.clientHeight;
+    tooltip.style.left = (e.pageX + tooltip.clientWidth + 32 < width ? e.pageX : width + 32 - tooltip.clientWidth) + 'px';
+    tooltip.style.top = (e.pageY + tooltip.clientHeight + 32 < height ? e.pageY : height + 32 - tooltip.clientHeight) + 'px';
 }
 function generate_csv() {
     rows = [["Folder", "Size", "Count"]];

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from grid_layout import get_webpage
+from grid_layout import get_webpage, AUTO_SCALE, SET_SIZE
 from utils import Folder, BatchingSql, ALL_ABSTRACTIONS
 import json
 import os
@@ -105,7 +105,11 @@ def main():
 
     with open(opts['output'], "wt", newline="\n", encoding="utf-8") as f:
         # TODO: Let the final size be an option
-        f.write(get_webpage(opts, abstraction, folder, 900, 600))
+        # The values 1900x965 are designed to be about the real-estate available
+        # on a 1080p display with some space left over for the browser UI
+        f.write(get_webpage(opts, abstraction, folder, 1900, 965, AUTO_SCALE))
+        # A test set size
+        # f.write(get_webpage(opts, abstraction, folder, 900, 600, SET_SIZE))
 
     print(f"All done, created {opts['output']}")
 
