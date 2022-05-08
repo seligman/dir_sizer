@@ -8,6 +8,7 @@ register_abstraction(__name__)
 # to use when creating a new abstraction
 
 MAIN_SWITCH = "--test"
+FLAG_PREFIX = "test_"
 DESCRIPTION = "Hardcoded test data"
 
 def handle_args(opts, args):

@@ -17,6 +17,7 @@ except:
 register_abstraction(__name__)
 
 MAIN_SWITCH = "--s3"
+FLAG_PREFIX = "s3_"
 DESCRIPTION = "Scan AWS S3 for object sizes"
 
 # TODO: A flag to sort by "cost"

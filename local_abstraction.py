@@ -7,6 +7,7 @@ import stat
 register_abstraction(__name__)
 
 MAIN_SWITCH = "--local"
+FLAG_PREFIX = "lfs_"
 DESCRIPTION = "Scan local file system"
 
 def handle_args(opts, args):
