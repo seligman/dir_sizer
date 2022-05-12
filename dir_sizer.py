@@ -175,6 +175,8 @@ def cache_get(opts, known_id):
 def load_files(opts, abstraction):
     if opts['cache'] is not None:
         known_id, valid = cache_init(opts, get_abstraction_flags(opts))
+    else:
+        known_id, valid = None, False
 
     if valid:
         for filename, size in cache_get(opts, known_id):
