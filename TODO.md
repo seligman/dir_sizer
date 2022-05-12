@@ -8,12 +8,12 @@ Items needed to get past an alpha release:
 - [x] Add labels for top level rects
 - [x] Add a local file system abstraction.
 - [x] Move the "cache" logic out of the S3 abstraction
-- [ ] Improve comments
+- [x] Improve comments
 - [ ] Add a requirements.txt file to bring in all needed packages
 - [ ] Test, test, test
 - [x] If an abstraction is missing a necessary package, hide it
 - [x] Add more details to the webpage to show overview, etc
-- [ ] Some way of parsing AWS Inventory Reports for larger buckets
+- [x] Some way of parsing AWS Inventory Reports for larger buckets
 
 Wish list items in a future version:
 

@@ -5,12 +5,18 @@ from datetime import datetime, timedelta
 from utils import TempMessage, size_to_string, count_to_string, register_abstraction, chunks
 from aws_constants import S3_COST_CLASSES
 from multiprocessing import Pool
+from urllib.parse import unquote, unquote_plus
+import csv
+import gzip
+import io
 import json
 import os
+import re
 try:
     # Wrap boto3 in a try/except block so we can still show the help, but
     # only fail if the user tries to call into S3
     import boto3
+    import botocore.exceptions
     IMPORTS_OK = True
 except:
     IMPORTS_OK = False
@@ -19,8 +25,6 @@ register_abstraction(__name__)
 MAIN_SWITCH = "--s3"
 FLAG_PREFIX = "s3_"
 DESCRIPTION = "Scan AWS S3 for object sizes"
-
-# TODO: A flag to sort by "cost"
 
 def handle_args(opts, args):
     if not IMPORTS_OK:
@@ -43,24 +47,26 @@ def handle_args(opts, args):
         elif len(args) >= 1 and args[0] == "--cost":
             opts['s3_cost'] = True
             args = args[1:]
+        elif len(args) >= 1 and args[0] == "--inventory":
+            opts['s3_inventory'] = True
+            args = args[1:]
         else:
             break
     
     if not opts['show_help']:
-        if 's3_bucket' in opts:
-            if 's3_all_buckets' in opts:
-                opts['show_help'] = True
-                print("ERROR: Both bucket and all_buckets specified, options are mutually exclusive")
-        elif 's3_all_buckets' in opts:
-            if 's3_bucket' in opts:
-                opts['show_help'] = True
-                print("ERROR: Both bucket and all_buckets specified, options are mutually exclusive")
-            elif 's3_prefix' in opts:
-                opts['show_help'] = True
-                print("ERROR: Both prefix and all_buckets specified, options are mutually exclusive")
-        else:
-            opts['show_help'] = True
-            print("ERROR: Neither bucket or all_buckets specified")
+        exclusive = [
+            ['bucket', ['all_buckets',]],
+            ['all_buckets', ['bucket', 'prefix', 'inventory']],
+        ]
+
+        for opt_a, opts_b in exclusive:
+            for opt_b in opts_b:
+                if ('s3_' + opt_a) in opts and ('s3_' + opt_b) in opts:
+                    opts['show_help'] = True
+                    print(f"ERROR: Both {opt_a} and {opt_b} specified, options are mutually exclusive")
+    elif ('s3_bucket' not in opts) and ('s3_all_buckets' not in opts):
+        opts['show_help'] = True
+        print("ERROR: Neither bucket or all_buckets specified")
 
     return args
 
@@ -68,6 +74,7 @@ def get_help():
     return f"""
         --profile <value> = AWS CLI profile name to use (optional)
         --bucket <value>  = S3 Bucket to scan
+        --inventory       = Use S3 Inventory report to get list of objects in bucket
         --prefix <value>  = Prefix to start scanning from (optional)
         --all_buckets     = Show size of all buckets (only if --bucket/--prefix isn't used)
                             (--profile may be a comma delimited list of profiles for this mode)
@@ -107,6 +114,126 @@ def load_pricing_data():
     with open(fn) as f:
         return json.load(f)
 
+def list_bucket_inventory_configurations(s3, bucket, required_fields=set(), output_format="CSV"):
+    # Helper to handle the pagination of a S3 inventory report
+    args = {
+        "Bucket": bucket,
+    }
+    while True:
+        resp = s3.list_bucket_inventory_configurations(**args)
+        for cur in resp.get('InventoryConfigurationList', []):
+            if cur['IsEnabled']:
+                if cur['Destination'].get('S3BucketDestination', {}).get('Format', '') == output_format:
+                    if len(set(cur['OptionalFields']) & required_fields) == len(required_fields):
+                        yield cur
+        if resp['IsTruncated']:
+            args['ContinuationToken'] = resp['NextContinuationToken']
+        else:
+            break
+
+def get_bucket_inventory(msg, s3, bucket, required_fields=set()):
+    # Load a S3 inventory report, including parsing CSV files
+    config = None
+    for cur in list_bucket_inventory_configurations(s3, bucket, required_fields=required_fields):
+        # Just use the first one found if there are multiple ones
+        # TODO: Validate the prefix properly matches or is a superset
+        # TODO: Use a different inventory report if it better matches the prefix
+        config = cur
+        break
+
+    if config is None:
+        raise Exception("Unable to find S3 Inventory config for " + bucket)
+    
+    # Build up the location of the reports
+    inv_bucket = config['Destination']['S3BucketDestination']['Bucket'].split(":")[5]
+    inv_prefix = config['Destination']['S3BucketDestination']['Prefix']
+    if len(inv_prefix) > 0 and not inv_prefix.endswith("/"):
+        inv_prefix += "/"
+    inv_prefix += bucket + "/"
+    inv_prefix += config['Id'] + "/"
+
+    # List all of the reports
+    reports = []
+    paginator = s3.get_paginator('list_objects_v2')
+    for page in paginator.paginate(Bucket=inv_bucket, Prefix=inv_prefix, Delimiter="/"):
+        for prefix in page.get('CommonPrefixes', []):
+            # Look for report "folders", ignoring the hive and data folders
+            if re.search("[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}Z/$", prefix['Prefix']) is not None:
+                reports.append(prefix['Prefix'] + "manifest.json")
+
+    found = False
+    # Find the latest report we can get
+    for report in reports[::-1]:
+        try:
+            resp = s3.get_object(Bucket=inv_bucket, Key=report)
+            found = True
+        except botocore.exceptions.ClientError as ex:
+            if ex.response['Error']['Code'] == 'NoSuchKey':
+                # It might fail if it's in the middle of an upload, so 
+                # ignore that edge case
+                continue
+            else:
+                raise
+        # Load the manifest file
+        resp = json.loads(resp['Body'].read())
+
+        updated = int(resp['creationTimestamp'])
+        updated = datetime.fromtimestamp(updated/1000)
+        msg(f'Using S3 Inventory report generated {updated.strftime("%Y-%m-%d %H:%M:%S")}...', newline=True, force=True)
+
+        # Pull out the schema for these CSV files
+        schema = [x.strip() for x in resp['fileSchema'].split(",")]
+        for file in resp['files']:
+            # And read through each row in this file
+            csv_gz = s3.get_object(Bucket=inv_bucket, Key=file['key'])['Body']
+            with gzip.GzipFile(fileobj=csv_gz) as gzf:
+                sr = io.TextIOWrapper(gzf)
+                cr = csv.reader(sr)
+                for row in cr:
+                    # Merge the schema and each row
+                    yield {x: y for x, y in zip(schema, row)}
+
+        # We're done with this report, don't move on to the next one
+        break
+
+    if not found:
+        raise Exception("Unable to find any inventory report files")
+
+def s3_list_objects(msg, opts, s3):
+    # Wrapper to call list_objects_v2 normally, or call into Inventory
+    # if that option is specified
+
+    prefix_len = len(opts.get('s3_prefix', ''))
+
+    if opts.get('s3_inventory', False):
+        # Using a S3 Inventory report
+        required_fields = {"Size"}
+        if opts.get('s3_cost', False):
+            required_fields.add("StorageClass")
+        prefix = opts.get('s3_prefix', '')
+        for row in get_bucket_inventory(msg, s3, opts['s3_bucket'], required_fields=required_fields):
+            key = unquote(row['Key'])
+            if key.startswith(prefix):
+                yield {
+                    'Key': key[prefix_len:],
+                    'Size': int(row['Size']),
+                    'StorageClass': row.get('StorageClass', ''),
+                }
+    else:
+        # Normal mode, just call list_objects_v2 and pass the results along
+        paginator = s3.get_paginator("list_objects_v2")
+        args = {"Bucket": opts['s3_bucket']}
+        if 's3_prefix' in opts:
+            args['Prefix'] = opts['s3_prefix']
+
+        for page in paginator.paginate(**args):
+            for cur in page['Contents']:
+                yield {
+                    'Key': cur['Key'][prefix_len:],
+                    'Size': cur['Size'],
+                    'StorageClass': cur['StorageClass'],
+                }
+
 def scan_folder(opts):
     msg = TempMessage()
     msg("Scanning...", force=True)
@@ -116,13 +243,6 @@ def scan_folder(opts):
         # Enumerate the objects in the target bucket
         s3 = get_s3(opts.get("s3_profile", ""))
 
-        paginator = s3.get_paginator("list_objects_v2")
-        args = {"Bucket": opts['s3_bucket']}
-        prefix_len = 0
-        if 's3_prefix' in opts:
-            args['Prefix'] = opts['s3_prefix']
-            prefix_len = len(opts['s3_prefix'])
-        
         if opts.get('s3_cost', False):
             location = get_bucket_location(s3, opts['s3_bucket'])
             temp = load_pricing_data()
@@ -134,18 +254,18 @@ def scan_folder(opts):
             location = None
             costs = None
 
-        for page in paginator.paginate(**args):
-            for cur in page['Contents']:
-                if location is None:
-                    size = cur['Size']
-                else:
-                    # We're in s3_cost mode, so use the cost as the size
-                    # This is (<size> / 1 GiB) * <price per GiB>
-                    size = (cur['Size'] / 1073741824) * costs[cur['StorageClass']]
-                total_objects += 1
-                total_size += size
-                yield cur['Key'][prefix_len:].split("/"), size
-            msg(f"Scanning, gathered {total_objects} totaling {dump_size(opts, total_size)}...")
+        for i, cur in enumerate(s3_list_objects(msg, opts, s3)):
+            if location is None:
+                size = cur['Size']
+            else:
+                # We're in s3_cost mode, so use the cost as the size
+                # This is (<size> / 1 GiB) * <price per GiB>
+                size = (cur['Size'] / 1073741824) * costs[cur['StorageClass']]
+            total_objects += 1
+            total_size += size
+            yield cur['Key'].split("/"), size
+            if i % 1000 == 999:
+                msg(f"Scanning, gathered {total_objects} totaling {dump_size(opts, total_size)}...")
     else:
         # List all the buckets, break out by region
         buckets = defaultdict(lambda: defaultdict(list))
