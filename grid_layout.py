@@ -374,10 +374,10 @@ function on_mousemove(e) {
         last = cur;
     }
 
-    var width = document.body.clientWidth;
-    var height = document.body.clientHeight;
-    tooltip.style.left = (e.pageX + tooltip.clientWidth + 32 < width ? e.pageX : width + 32 - tooltip.clientWidth) + 'px';
-    tooltip.style.top = (e.pageY + tooltip.clientHeight + 32 < height ? e.pageY : height + 32 - tooltip.clientHeight) + 'px';
+    var width = window.innerWidth;
+    var height = window.innerHeight;
+    tooltip.style.left = ((e.pageX - 32) + tooltip.clientWidth + 64 < width ? (e.pageX - 32) : width - (64 + tooltip.clientWidth)) + 'px';
+    tooltip.style.top = (e.pageY + tooltip.clientHeight + 64 < height ? e.pageY : e.pageY - (32 + tooltip.clientHeight)) + 'px';
 }
 function generate_csv() {
     rows = [["Folder", "Size", "Count"]];
