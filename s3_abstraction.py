@@ -114,7 +114,7 @@ def load_pricing_data():
     with open(fn) as f:
         return json.load(f)
 
-def list_bucket_inventory_configurations(s3, bucket, required_fields=set(), output_format="CSV"):
+def list_bucket_inventory_configurations(s3, bucket):
     # Helper to handle the pagination of a S3 inventory report
     args = {
         "Bucket": bucket,
@@ -123,31 +123,63 @@ def list_bucket_inventory_configurations(s3, bucket, required_fields=set(), outp
         resp = s3.list_bucket_inventory_configurations(**args)
         for cur in resp.get('InventoryConfigurationList', []):
             if cur['IsEnabled']:
-                if cur['Destination'].get('S3BucketDestination', {}).get('Format', '') == output_format:
-                    if len(set(cur['OptionalFields']) & required_fields) == len(required_fields):
-                        yield cur
+                yield cur
         if resp['IsTruncated']:
             args['ContinuationToken'] = resp['NextContinuationToken']
         else:
             break
 
-def get_bucket_inventory(msg, s3, bucket, required_fields=set()):
+def get_bucket_inventory(msg, s3, bucket, required_fields=set(), prefix=""):
     # Load a S3 inventory report, including parsing CSV files
+    possible_configs = []
     config = None
-    for cur in list_bucket_inventory_configurations(s3, bucket, required_fields=required_fields):
-        # Just use the first one found if there are multiple ones
-        # TODO: Validate the prefix properly matches or is a superset
-        # TODO: Use a different inventory report if it better matches the prefix
-        config = cur
-        break
+
+    for cur in list_bucket_inventory_configurations(s3, bucket):
+        valid = True
+        # Look for backup configs that match what we need
+        if cur['Destination'].get('S3BucketDestination', {}).get('Format', '') != "CSV":
+            # We require CSV format
+            valid = False
+        elif len(set(cur['OptionalFields']) & required_fields) != len(required_fields):
+            # Need all of the fields, like Size and possibly StorageClass
+            valid = False
+        elif not prefix.startswith(cur.get('Filter', {}).get('Prefix', '')):
+            # Only look at inventory reports that match the prefix we're given
+            valid = False
+
+        if valid:
+            possible_configs.append(cur)
+
+    if len(possible_configs) > 0:
+        # Sort the configs to find the best one
+        # Basically, prefer:
+        #   Longer prefix (less data to parse)
+        #   Daily over anything else (more up to date)
+        #   Only current object versions (Less data to download)
+        #   Less fields (Less data to download)
+        # Other diffs are ignored
+        possible_configs.sort(key=lambda x: (
+            -len(x.get("Filter", {}).get("Prefix", "")),
+            1 if x.get("Schedule", {}).get("Frequency", "") == "Daily" else 2,
+            1 if x.get("IncludedObjectVersions", "") == "Current" else 2,
+            -len(x.get("OptionalFields", [])),
+        ))
+        # And pull out the best option
+        config = possible_configs[0]
 
     if config is None:
-        raise Exception("Unable to find S3 Inventory config for " + bucket)
+        msg = f"Unable to find S3 Inventory report for '{bucket}'"
+        if len(prefix) > 0:
+            msg += f", that includes at least the prefix '{prefix}'"
+        msg += ", in the CSV format"
+        if len(required_fields) > 0:
+            msg += ", with the optional fields of " + ', '.join(f"'{x}'" for x in required_fields)
+        raise Exception(msg)
     
     # Build up the location of the reports
     inv_bucket = config['Destination']['S3BucketDestination']['Bucket'].split(":")[5]
     inv_prefix = config['Destination']['S3BucketDestination']['Prefix']
-    if len(inv_prefix) > 0 and not inv_prefix.endswith("/"):
+    if len(inv_prefix) > 0:
         inv_prefix += "/"
     inv_prefix += bucket + "/"
     inv_prefix += config['Id'] + "/"
@@ -179,7 +211,7 @@ def get_bucket_inventory(msg, s3, bucket, required_fields=set()):
 
         updated = int(resp['creationTimestamp'])
         updated = datetime.fromtimestamp(updated/1000)
-        msg(f'Using S3 Inventory report generated {updated.strftime("%Y-%m-%d %H:%M:%S")}...', newline=True, force=True)
+        msg(f'Using S3 Inventory report "{config["Id"]}" generated {updated.strftime("%Y-%m-%d %H:%M:%S")}...', newline=True, force=True)
 
         # Pull out the schema for these CSV files
         schema = [x.strip() for x in resp['fileSchema'].split(",")]
@@ -197,7 +229,7 @@ def get_bucket_inventory(msg, s3, bucket, required_fields=set()):
         break
 
     if not found:
-        raise Exception("Unable to find any inventory report files")
+        raise Exception(f"Unable to find any inventory report data files for report '{config['Id']}', has it run?")
 
 def s3_list_objects(msg, opts, s3):
     # Wrapper to call list_objects_v2 normally, or call into Inventory
@@ -211,7 +243,7 @@ def s3_list_objects(msg, opts, s3):
         if opts.get('s3_cost', False):
             required_fields.add("StorageClass")
         prefix = opts.get('s3_prefix', '')
-        for row in get_bucket_inventory(msg, s3, opts['s3_bucket'], required_fields=required_fields):
+        for row in get_bucket_inventory(msg, s3, opts['s3_bucket'], required_fields=required_fields, prefix=prefix):
             key = unquote(row['Key'])
             if key.startswith(prefix):
                 yield {
