@@ -33,6 +33,14 @@ def get_help():
         --follow_links = Follow into links and junctions (optional)
     """
 
+# ----- SCANNER_START ---------------------------------------------------------
+# This section of code from scanner_start to scanner_end is desgined to be 
+# pulled out and used by the SSH abstraction.  This is done to prevent two
+# blocks of code that do the same thing.
+import os
+import stat
+from collections import deque
+
 def is_link(dn):
     # Check to see if this is a symbolic link on Unix systems
     if os.path.islink(dn):
@@ -62,9 +70,9 @@ def scan_folder(opts):
     todo = deque([(os.path.expanduser(opts['lfs_base']), [])])
     while len(todo) > 0:
         path, path_parts = todo.pop()
-        # Use scandir instead of other options to speed force FindFirstFile on windows
-        # for a considerable speedup, but these functions aren't recursive on their
-        # own, so track directories in a deque and recurse manually
+        # Use scandir instead of other options to force FindFirstFile on Windows
+        # for a considerable speedup.  These functions aren't recursive on their
+        # own, so track directories in a deque and recurse manually.
         # Order here isn't important, it'll be sorted elsewhere, so whatever scandir
         # returns in is fine.
         try:
@@ -100,6 +108,7 @@ def scan_folder(opts):
             # file don't break an entire folder
             pass
     msg(f"Done, saw {total_objects} totaling {size_to_string(total_size)}", newline=True)
+# ----- SCANNER_END -----------------------------------------------------------
 
 def split(path):
     # Simple split/join methods meant to be symmentrical and somewhat OS aware

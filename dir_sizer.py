@@ -10,6 +10,7 @@ import textwrap
 # Abstractions will self-register if they're able
 import local_abstraction
 import s3_abstraction
+import ssh_abstraction
 import test_abstraction # TODO: Remove this when it's no longer needed
 
 def set_output(opts, args):
