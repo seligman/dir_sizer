@@ -352,9 +352,19 @@ function safe_html(value) {
 }
 function on_mousemove(e) {
     var tooltip = document.getElementById("tooltip");
-    var cur = e.srcElement;
-    if (cur.tagName != "DIV" || !(cur.id in tooltips)) {
-        cur = null;
+    var is_tooltip = false;
+    var cur = null;
+    for (const elem of e.path) {
+        if (elem.tagName == "DIV" && (elem.id in tooltips)) {
+            cur = elem;
+            break;
+        }
+        if (elem == tooltip) {
+            is_tooltip = true;
+        }
+    }
+    if (cur == null && is_tooltip) {
+        return;
     }
 
     if (last != cur) {
