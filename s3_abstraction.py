@@ -50,6 +50,9 @@ def handle_args(opts, args):
         elif len(args) >= 1 and args[0] == "--inventory":
             opts['s3_inventory'] = True
             args = args[1:]
+        elif len(args) >= 2 and args[0] == "--endpoint":
+            opts['s3_endpoint'] = args[1]
+            args = args[2:]
         else:
             break
     
@@ -67,27 +70,48 @@ def handle_args(opts, args):
     elif ('s3_bucket' not in opts) and ('s3_all_buckets' not in opts):
         opts['show_help'] = True
         print("ERROR: Neither bucket or all_buckets specified")
+    elif ('s3_endpoint' in opts) and ('s3_inventory' in opts):
+        opts['show_help'] = True
+        print("ERROR: AWS S3 Inventory not supported with custom endpoints")
+    elif ('s3_endpoint' in opts) and ('s3_cost' in opts):
+        opts['show_help'] = True
+        print("ERROR: AWS S3 cost not supported with custom endpoints")
+    elif ('s3_endpoint' in opts) and ('s3_all_buckets' in opts):
+        opts['show_help'] = True
+        print("ERROR: AWS S3 bucket list not supported with custom endpoints")
 
     return args
 
 def get_help():
     return f"""
-        --profile <value> = AWS CLI profile name to use (optional)
-        --bucket <value>  = S3 Bucket to scan
-        --inventory       = Use S3 Inventory report to get list of objects in bucket
-        --prefix <value>  = Prefix to start scanning from (optional)
-        --all_buckets     = Show size of all buckets (only if --bucket/--prefix isn't used)
-                            (--profile may be a comma delimited list of profiles for this mode)
-        --cost            = Count cost instead of size for objects
+        --profile <value>  = AWS CLI profile name to use (optional)
+        --bucket <value>   = S3 Bucket to scan
+        --endpoint <value> = Custom endpoint URL to use for S3
+        --inventory        = Use S3 Inventory report to get list of objects in bucket
+        --prefix <value>   = Prefix to start scanning from (optional)
+        --all_buckets      = Show size of all buckets (only if --bucket/--prefix isn't used)
+                             (--profile may be a comma delimited list of profiles for this mode)
+        --cost             = Count cost instead of size for objects
     """ + ("" if IMPORTS_OK else """
         WARNING: boto3 import failed, module will not work correctly!
     """)
 
-def get_s3(profile):
+def get_profiles(opts):
+    # Helper to enumerate different profile options in opts
+    for cur in opts.get("s3_profile", "").split(","):
+        temp = opts.copy()
+        temp['s3_profile'] = cur
+        yield cur
+
+def get_s3(opts):
+    args = {}
+    if 's3_endpoint' in opts:
+        args['endpoint_url'] = opts['s3_endpoint']
+    profile = opts.get('s3_profile', '')
     if len(profile):
-        return boto3.Session(profile_name=profile).client('s3')
+        return boto3.Session(profile_name=profile).client('s3', **args)
     else:
-        return boto3.client('s3')
+        return boto3.client('s3', **args)
 
 def get_cw(profile, region):
     if len(profile):
@@ -103,8 +127,8 @@ def get_bucket_location(s3, bucket):
 
 def get_bucket_location_worker(job):
     # Helper to handle lookup on a different process
-    profile, bucket = job
-    s3 = get_s3(profile)
+    opts, bucket = job
+    s3 = get_s3(opts)
     location = get_bucket_location(s3, bucket)
     return bucket, location
 
@@ -273,7 +297,7 @@ def scan_folder(opts):
     total_objects, total_size = 0, 0
     if 's3_bucket' in opts:
         # Enumerate the objects in the target bucket
-        s3 = get_s3(opts.get("s3_profile", ""))
+        s3 = get_s3(opts)
 
         if opts.get('s3_cost', False):
             location = get_bucket_location(s3, opts['s3_bucket'])
@@ -302,7 +326,7 @@ def scan_folder(opts):
         # List all the buckets, break out by region
         buckets = defaultdict(lambda: defaultdict(list))
         seen_buckets = 0
-        for profile in opts.get("s3_profile", "").split(","):
+        for profile in get_profiles(opts):
             s3 = get_s3(profile)
             with Pool() as pool:
                 for bucket, location in pool.imap_unordered(get_bucket_location_worker, [(profile, x['Name']) for x in s3.list_buckets()['Buckets']]):
