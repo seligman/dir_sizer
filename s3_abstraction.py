@@ -146,8 +146,7 @@ def list_bucket_inventory_configurations(s3, bucket):
     while True:
         resp = s3.list_bucket_inventory_configurations(**args)
         for cur in resp.get('InventoryConfigurationList', []):
-            if cur['IsEnabled']:
-                yield cur
+            yield cur
         if resp['IsTruncated']:
             args['ContinuationToken'] = resp['NextContinuationToken']
         else:
@@ -161,14 +160,20 @@ def get_bucket_inventory(msg, s3, bucket, required_fields=set(), prefix=""):
     for cur in list_bucket_inventory_configurations(s3, bucket):
         valid = True
         # Look for backup configs that match what we need
-        if cur['Destination'].get('S3BucketDestination', {}).get('Format', '') != "CSV":
-            # We require CSV format
+        if not cur.get("IsEnabled", False):
+            # Needs to be an active inventory report
+            valid = False
+        elif cur.get('Destination', {}).get('S3BucketDestination', {}).get('Format', '') != "CSV":
+            # Require CSV format
             valid = False
         elif len(set(cur['OptionalFields']) & required_fields) != len(required_fields):
-            # Need all of the fields, like Size and possibly StorageClass
+            # Require different fields, at least Size, but might also need StorageClass for "cost"
             valid = False
         elif not prefix.startswith(cur.get('Filter', {}).get('Prefix', '')):
             # Only look at inventory reports that match the prefix we're given
+            valid = False
+        elif cur.get("IncludedObjectVersions", "") != "All":
+            # Need all object versions to get an an accurate view of the bucket
             valid = False
 
         if valid:
@@ -177,11 +182,11 @@ def get_bucket_inventory(msg, s3, bucket, required_fields=set(), prefix=""):
     if len(possible_configs) > 0:
         # Sort the configs to find the best one
         # Basically, prefer:
-        #   Longer prefix (less data to parse)
+        #   Longer prefix (less data to download and parse)
         #   Daily over anything else (more up to date)
-        #   Only current object versions (Less data to download)
-        #   Less fields (Less data to download)
-        # Other diffs are ignored
+        #   Only current object versions (less data to download)
+        #   Less fields (less data to download)
+        # Other differences are ignored
         possible_configs.sort(key=lambda x: (
             -len(x.get("Filter", {}).get("Prefix", "")),
             1 if x.get("Schedule", {}).get("Frequency", "") == "Daily" else 2,
@@ -198,6 +203,7 @@ def get_bucket_inventory(msg, s3, bucket, required_fields=set(), prefix=""):
         msg += ", in the CSV format"
         if len(required_fields) > 0:
             msg += ", with the optional fields of " + ', '.join(f"'{x}'" for x in required_fields)
+        msg += ", that includes all object versions"
         raise Exception(msg)
     
     # Build up the location of the reports
@@ -226,7 +232,7 @@ def get_bucket_inventory(msg, s3, bucket, required_fields=set(), prefix=""):
         except botocore.exceptions.ClientError as ex:
             if ex.response['Error']['Code'] == 'NoSuchKey':
                 # It might fail if it's in the middle of an upload, so 
-                # ignore that edge case
+                # ignore that edge case, and go back in time to an older report
                 continue
             else:
                 raise
@@ -256,7 +262,7 @@ def get_bucket_inventory(msg, s3, bucket, required_fields=set(), prefix=""):
         raise Exception(f"Unable to find any inventory report data files for report '{config['Id']}', has it run?")
 
 def s3_list_objects(msg, opts, s3):
-    # Wrapper to call list_objects_v2 normally, or call into Inventory
+    # Wrapper to call list_object_versions normally, or call into Inventory
     # if that option is specified
 
     prefix_len = len(opts.get('s3_prefix', ''))
@@ -276,14 +282,14 @@ def s3_list_objects(msg, opts, s3):
                     'StorageClass': row.get('StorageClass', ''),
                 }
     else:
-        # Normal mode, just call list_objects_v2 and pass the results along
-        paginator = s3.get_paginator("list_objects_v2")
+        # Normal mode, just call list_object_versions and pass the results along
+        paginator = s3.get_paginator("list_object_versions")
         args = {"Bucket": opts['s3_bucket']}
         if 's3_prefix' in opts:
             args['Prefix'] = opts['s3_prefix']
 
         for page in paginator.paginate(**args):
-            for cur in page['Contents']:
+            for cur in page.get('Versions', []):
                 yield {
                     'Key': cur['Key'][prefix_len:],
                     'Size': cur['Size'],
