@@ -182,13 +182,12 @@ def main():
             f.write(get_webpage(opts, abstraction, folder, 1900, 965, AUTO_SCALE))
             # A test set size
             # f.write(get_webpage(opts, abstraction, folder, 900, 600, SET_SIZE))
+        print(f"All done, created {opts['output']}")
     elif opts['output_mode'] == 'none':
-        # Nothing to do
-        pass
+        print(f"All done")
     else:
         raise Exception("ERROR: Unknown output mode!")
 
-    print(f"All done, created {opts['output']}")
 
 def cache_init(opts, flags):
     known_id, valid = None, False
