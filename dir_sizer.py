@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
+from datetime import datetime
 from grid_layout import get_webpage, AUTO_SCALE, SET_SIZE
 from utils import Folder, BatchingSql, ALL_ABSTRACTIONS
 import json
+import os
 import sqlite3
 import sys
 import textwrap
@@ -15,7 +17,12 @@ import test_abstraction # TODO: Remove this when it's no longer needed
 
 def set_output(opts, args):
     if len(args) > 0:
+        if opts['output_mode'] is not None:
+            print("ERROR: Output already specified")
+            opts['show_help'] = True
+            return args
         opts['output'] = args[0]
+        opts['output_mode'] = 'html'
         return args[1:]
     else:
         print("ERROR: No filename for --output specified")
@@ -24,6 +31,10 @@ def set_output(opts, args):
 
 def set_cache(opts, args):
     if len(args) > 0:
+        if opts['cache'] is not None:
+            print("ERROR: Cache already specified")
+            opts['show_help'] = True
+            return args
         opts['cache'] = args[0]
         return args[1:]
     else:
@@ -31,8 +42,38 @@ def set_cache(opts, args):
         opts['show_help'] = True
         return args
 
+def set_cache_dir(opts, args):
+    if len(args) > 0:
+        if opts['cache'] is not None:
+            print("ERROR: Cache already specified")
+            opts['show_help'] = True
+            return args
+        dn = os.path.expanduser(args[0])
+        if not os.path.isdir(dn):
+            print(f"ERROR: Directory {dn} does not exist")
+            opts['show_help'] = True
+            return args
+        now = datetime.utcnow()
+        dn = os.path.join(dn, now.strftime("%Y"), now.strftime("%m"), now.strftime("%d"))
+        if not os.path.isdir(dn):
+            os.makedirs(dn)
+        opts['cache'] = os.path.join(dn, now.strftime("%Y-%m-%d-%H-%M-%S") + ".db")
+        return args[1:]
+    else:
+        print("ERROR: No directory name for --cache_dir specified")
+        opts['show_help'] = True
+        return args
+
 def set_debug(opts, args):
     opts['debug'] = True
+    return args
+
+def set_no_output(opts, args):
+    if opts['output_mode'] is not None:
+        print("ERROR: Output already specified")
+        opts['show_help'] = True
+        return args
+    opts['output_mode'] = 'none'
     return args
 
 def get_abstraction_flags(opts):
@@ -47,6 +88,7 @@ def main():
     opts = {
         'target': None,
         'output': None,
+        'output_mode': None,
         'show_help': False,
         'cache': None,
         'debug': False,
@@ -54,7 +96,9 @@ def main():
 
     flags = {
         '--output': set_output,
+        '--no_output': set_no_output,
         '--cache': set_cache,
+        '--cache_dir': set_cache_dir,
         '--debug': set_debug,
     }
 
@@ -92,16 +136,18 @@ def main():
         print("ERROR: No target scanner module specified")
         opts['show_help'] = True
 
-    if not opts['show_help'] and opts['output'] is None:
-        print("ERROR: No output filename specified")
+    if not opts['show_help'] and opts['output_mode'] is None:
+        print("ERROR: No output specified")
         opts['show_help'] = True
 
     if opts['debug']:
         print(textwrap.dedent("""
             Debug options:
 
-            --cache <value>  = Store and use cache of files in <value> file
-                               Note that one cache file can store different options
+            --cache <value>     = Store and use cache of files in <value> file
+            --cache_dir <value> = Create a new cache file in <value> directory with 
+                                  the current timestamp
+                                  Note that one cache file can store different options
         """))
         exit(1)
 
@@ -110,6 +156,7 @@ def main():
             Usage: 
 
             --output <value> = Filename to output results to
+            --no_output      = Don't create any output file
             --debug          = Show some additional options useful for debugging
         """))
         for cur in ALL_ABSTRACTIONS:
@@ -127,13 +174,19 @@ def main():
         folder.add(filename, size)
     folder.sum_up()
 
-    with open(opts['output'], "wt", newline="\n", encoding="utf-8") as f:
-        # TODO: Let the final size be an option
-        # The values 1900x965 are designed to be about the real-estate available
-        # on a 1080p display with some space left over for the browser UI
-        f.write(get_webpage(opts, abstraction, folder, 1900, 965, AUTO_SCALE))
-        # A test set size
-        # f.write(get_webpage(opts, abstraction, folder, 900, 600, SET_SIZE))
+    if opts['output_mode'] == 'html':
+        with open(opts['output'], "wt", newline="\n", encoding="utf-8") as f:
+            # TODO: Let the final size be an option
+            # The values 1900x965 are designed to be about the real-estate available
+            # on a 1080p display with some space left over for the browser UI
+            f.write(get_webpage(opts, abstraction, folder, 1900, 965, AUTO_SCALE))
+            # A test set size
+            # f.write(get_webpage(opts, abstraction, folder, 900, 600, SET_SIZE))
+    elif opts['output_mode'] == 'none':
+        # Nothing to do
+        pass
+    else:
+        raise Exception("ERROR: Unknown output mode!")
 
     print(f"All done, created {opts['output']}")
 
