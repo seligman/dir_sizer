@@ -103,11 +103,14 @@ def get_profiles(opts):
         temp['s3_profile'] = cur
         yield cur
 
-def get_s3(opts):
+def get_s3(opts, profile_name=None):
     args = {}
     if 's3_endpoint' in opts:
         args['endpoint_url'] = opts['s3_endpoint']
-    profile = opts.get('s3_profile', '')
+    if profile_name is None:
+        profile = opts.get('s3_profile', '')
+    else:
+        profile = profile_name
     if len(profile):
         return boto3.Session(profile_name=profile).client('s3', **args)
     else:
@@ -127,8 +130,8 @@ def get_bucket_location(s3, bucket):
 
 def get_bucket_location_worker(job):
     # Helper to handle lookup on a different process
-    opts, bucket = job
-    s3 = get_s3(opts)
+    opts, profile, bucket = job
+    s3 = get_s3(opts, profile)
     location = get_bucket_location(s3, bucket)
     return bucket, location
 
@@ -333,9 +336,10 @@ def scan_folder(opts):
         buckets = defaultdict(lambda: defaultdict(list))
         seen_buckets = 0
         for profile in get_profiles(opts):
-            s3 = get_s3(profile)
+            s3 = get_s3(opts, profile)
             with Pool() as pool:
-                for bucket, location in pool.imap_unordered(get_bucket_location_worker, [(profile, x['Name']) for x in s3.list_buckets()['Buckets']]):
+                temp = {x: y for x, y in opts.items() if x.startswith("s3_")}
+                for bucket, location in pool.imap_unordered(get_bucket_location_worker, [(temp, profile, x['Name']) for x in s3.list_buckets()['Buckets']]):
                     seen_buckets += 1
                     msg(f"Scanning, finding buckets, gathered data for {seen_buckets} buckets...")
                     buckets[profile][location].append(bucket)
