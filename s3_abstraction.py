@@ -3,7 +3,6 @@
 from collections import defaultdict
 from datetime import datetime, timedelta
 from utils import TempMessage, size_to_string, count_to_string, register_abstraction, chunks
-from aws_constants import S3_COST_CLASSES
 from multiprocessing import Pool
 from urllib.parse import unquote, unquote_plus
 import csv
@@ -134,6 +133,12 @@ def get_bucket_location_worker(job):
     s3 = get_s3(opts, profile)
     location = get_bucket_location(s3, bucket)
     return bucket, location
+
+def load_s3_cost_classes():
+    # Load the pricing data, using this module's location as an anchor point
+    fn = os.path.join(os.path.split(__file__)[0], "s3_cost_classes.json")
+    with open(fn) as f:
+        return json.load(f)["classes"]
 
 def load_pricing_data():
     # Load the pricing data, using this module's location as an anchor point
@@ -314,7 +319,7 @@ def scan_folder(opts):
             if location not in temp:
                 raise Exception(f"Unknown costs for region {location}!")
             # Lookup table to look up a S3 Storage Class to price per GiB
-            costs = {x['s3']: float(temp[location][x['desc']]) for x in S3_COST_CLASSES}
+            costs = {x['s3']: float(temp[location][x['desc']]) for x in load_s3_cost_classes()}
         else:
             location = None
             costs = None
@@ -359,7 +364,7 @@ def scan_folder(opts):
                 cw = get_cw(profile, region)
 
                 # Pull out all of the possible cost classes
-                storages = [(x['cw'], 'BucketSizeBytes', True) for x in S3_COST_CLASSES]
+                storages = [(x['cw'], 'BucketSizeBytes', True) for x in load_s3_cost_classes()]
                 # And ask for the number of objects in each bucket as well
                 storages.append(('AllStorageTypes', 'NumberOfObjects', False))
 
@@ -416,13 +421,13 @@ def scan_folder(opts):
             # Load cost data if we want to use it
             if opts.get('s3_cost', False):
                 costs = {}
-                metric_to_cost = {x['cw']: x['desc'] for x in S3_COST_CLASSES}
+                metric_to_cost = {x['cw']: x['desc'] for x in load_s3_cost_classes()}
                 temp = load_pricing_data()
                 # Lookup table to look up a S3 Storage Class to price per GiB
                 for region in buckets[profile]:
                     if region not in temp:
                         raise Exception(f"Unknown costs for region {region}!")
-                    costs[region] = {x['cw']: float(temp[region][x['desc']]) for x in S3_COST_CLASSES}
+                    costs[region] = {x['cw']: float(temp[region][x['desc']]) for x in load_s3_cost_classes()}
             else:
                 costs = None
                 metric_to_cost = None

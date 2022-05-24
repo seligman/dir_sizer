@@ -1,0 +1,101 @@
+{
+    "_meta": {
+        "_comment": [
+            "Different types of S3 storages, and where the costs come from",
+            "",
+            "  'desc'        = The local description/key for the storage class",
+            "  'page_source' = The AWS source for this data",
+            "  'page_desc'   = The key in page_source for this value",
+            "  'cw'          = The cloudwatch metric for this value",
+            "  's3'          = The S3 storage class for this type (may be None/null)",
+            "",
+            "This file is manually generated"
+        ]
+    },
+    "classes": [
+        {
+            "cw": "DeepArchiveStorage",
+            "desc": "DeepArchive",
+            "page_desc": "Glacier Deep Archive GB Mo",
+            "page_source": "deep",
+            "s3": "DEEP_ARCHIVE"
+        },
+        {
+            "cw": "GlacierStorage",
+            "desc": "Glacier",
+            "page_desc": "Glacier Storage per GB Mo",
+            "page_source": "costs",
+            "s3": "GLACIER"
+        },
+        {
+            "cw": "GlacierInstantRetrievalStorage",
+            "desc": "GlacierInstant",
+            "page_desc": "Glacier Instant Retrieval Storage",
+            "page_source": "costs",
+            "s3": "GLACIER_IR"
+        },
+        {
+            "cw": "IntelligentTieringAAStorage",
+            "desc": "IntelligentAA",
+            "page_desc": "IntelligentTieringArchiveStorage",
+            "page_source": "costs",
+            "s3": null
+        },
+        {
+            "cw": "IntelligentTieringAIAStorage",
+            "desc": "IntelligentAIA",
+            "page_desc": "IntelligentTieringArchiveInstantAccess",
+            "page_source": "costs",
+            "s3": "INTELLIGENT_TIERING"
+        },
+        {
+            "cw": "IntelligentTieringDAAStorage",
+            "desc": "IntelligentDAA",
+            "page_desc": "IntelligentTieringDeepArchiveStorage",
+            "page_source": "costs",
+            "s3": null
+        },
+        {
+            "cw": "IntelligentTieringFAStorage",
+            "desc": "IntelligentFA",
+            "page_desc": "Intelligent Tiering Frequent Access Over 500 TB per GB Mo",
+            "page_source": "costs",
+            "s3": null
+        },
+        {
+            "cw": "IntelligentTieringIAStorage",
+            "desc": "IntelligentIA",
+            "page_desc": "Intelligent Tiering Infrequent Access per GB Mo",
+            "page_source": "costs",
+            "s3": null
+        },
+        {
+            "cw": "ReducedRedundancyStorage",
+            "desc": "ReducedRedundancy",
+            "page_desc": "Reduced Redundancy Storage Over 5 000 TB per GB Mo",
+            "page_source": "costs",
+            "s3": "REDUCED_REDUNDANCY"
+        },
+        {
+            "cw": "StandardStorage",
+            "desc": "Standard",
+            "page_desc": "Standard Storage Over 500 TB per GB Mo",
+            "page_source": "costs",
+            "s3": "STANDARD"
+        },
+        {
+            "cw": "StandardIAStorage",
+            "desc": "StandardIA",
+            "page_desc": "Standard Infrequent Access Storage per GB-Mo",
+            "page_source": "costs",
+            "s3": "STANDARD_IA"
+        },
+        {
+            "cw": "OneZoneIAStorage",
+            "desc": "StandardIA-OneAZ",
+            "page_desc": "One Zone Infrequent Access Storage Inf per GB-Mo",
+            "page_source": "costs",
+            "s3": "ONEZONE_IA"
+        }
+    ]
+}
