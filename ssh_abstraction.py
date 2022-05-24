@@ -3,6 +3,7 @@
 from utils import TempMessage, size_to_string, count_to_string, register_abstraction
 import base64
 import gzip
+import hashlib
 import json
 import os
 import textwrap
@@ -104,20 +105,30 @@ def get_remote_script(opts):
 
     # Add a small helper that calls the local function
     script += textwrap.dedent("""
-        import json,os,gzip,base64,sys
-        batch = []
-        def dump_batch(batch):
-            batch = json.dumps(batch, separators=(',', ':'))
-            batch = base64.b64encode(gzip.compress(batch.encode("utf-8"))).decode("utf-8")
-            sys.stdout.write("%08d%s"%(len(batch),batch))
-            sys.stdout.flush()
-        for x in scan_folder({'lfs_base': os.path.expanduser(""" + json.dumps(opts["ssh_path"]) + """)}):
-            batch.append(x)
-            if len(batch) >= 1000:
-                dump_batch(batch)
-                batch = []
-        batch.append("DONE")
-        dump_batch(batch)
+        import json,os,gzip,base64,sys,hashlib
+        class Batch:
+            def __init__(self):
+                self.batch=[]
+            def append(self,value):
+                self.batch.append(value)
+                if len(self)>=1000:
+                    self.dump()
+            def __len__(self):
+                return len(self.batch)
+            def dump(self):
+                if len(self)==0:
+                    return
+                x,self.batch=json.dumps(self.batch,separators=(',',':')),[]
+                x=base64.b64encode(gzip.compress(x.encode("utf-8")))
+                x=x.decode("utf-8")+hashlib.sha256(x).hexdigest()[:8]
+                xlen=f"{len(x):0x}"
+                sys.stdout.write(f"{len(xlen):0x}{xlen}{x}")
+                sys.stdout.flush()
+        b=Batch()
+        for x in scan_folder({'lfs_base':os.path.expanduser("""+json.dumps(opts["ssh_path"])+""")}):
+            b.append(x)
+        b.append("DONE")
+        b.dump()
     """)
 
     # Encode the script to a base64 blob that can be run directly in REPL or command line
@@ -152,6 +163,7 @@ def scan_folder(opts):
     msg("Scanning...", force=True)
 
     # Build up a command to run, use "python3" if it exists, otherwise fall back to "python" and a hope
+    # It does require Python v3.6 or greater to run
     cmd = "`if type python3>/dev/null 2>&1;then echo python3;else echo python;fi` -c '" + remote_code + "'"
 
     stdin, stdout, stderr = ssh.exec_command(cmd)
@@ -159,11 +171,23 @@ def scan_folder(opts):
     total_objects, total_size = 0, 0
     while not read_done:
         # Ok, the remote script is running, go ahead and read one batch at a time
-        to_read = stdout.read(8)
-        if len(to_read) != 8:
-            break
-        to_read = int(to_read.decode("utf-8"))
-        data = json.loads(gzip.decompress(base64.b64decode(stdout.read(to_read))))
+        to_read_len = stdout.read(1)
+        if len(to_read_len) != 1:
+            raise Exception("Unable to read data length byte")
+        to_read_len = int(to_read_len, 16)
+        to_read = stdout.read(to_read_len)
+        if len(to_read) != to_read_len:
+            raise Exception("Unable to read data length header")
+        to_read = int(to_read, 16)
+
+        data = stdout.read(to_read)
+        if len(data) != to_read:
+            raise Exception("Unable to read all data")
+        data, validate = data[:-8], data[-8:]
+        calculated = hashlib.sha256(data).hexdigest()[:8].encode("utf-8")
+        if calculated != validate:
+            raise Exception("Data SHA256 was invalid!")
+        data = json.loads(gzip.decompress(base64.b64decode(data)))
         for row in data:
             if row == "DONE":
                 read_done = True
