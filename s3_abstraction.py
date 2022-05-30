@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from utils import TempMessage, size_to_string, count_to_string, register_abstraction, chunks
 from multiprocessing import Pool
 from urllib.parse import unquote, unquote_plus
+from aws_pager import aws_pager
 import csv
 import gzip
 import io
@@ -146,26 +147,12 @@ def load_pricing_data():
     with open(fn) as f:
         return json.load(f)
 
-def list_bucket_inventory_configurations(s3, bucket):
-    # Helper to handle the pagination of a S3 inventory report
-    args = {
-        "Bucket": bucket,
-    }
-    while True:
-        resp = s3.list_bucket_inventory_configurations(**args)
-        for cur in resp.get('InventoryConfigurationList', []):
-            yield cur
-        if resp['IsTruncated']:
-            args['ContinuationToken'] = resp['NextContinuationToken']
-        else:
-            break
-
 def get_bucket_inventory(msg, s3, bucket, required_fields=set(), prefix=""):
     # Load a S3 inventory report, including parsing CSV files
     possible_configs = []
     config = None
 
-    for cur in list_bucket_inventory_configurations(s3, bucket):
+    for _, cur in aws_pager(s3, 'list_bucket_inventory_configurations', 'InventoryConfigurationList', Bucket=bucket):
         valid = True
         # Look for backup configs that match what we need
         if not cur.get("IsEnabled", False):
@@ -224,12 +211,10 @@ def get_bucket_inventory(msg, s3, bucket, required_fields=set(), prefix=""):
 
     # List all of the reports
     reports = []
-    paginator = s3.get_paginator('list_objects_v2')
-    for page in paginator.paginate(Bucket=inv_bucket, Prefix=inv_prefix, Delimiter="/"):
-        for prefix in page.get('CommonPrefixes', []):
-            # Look for report "folders", ignoring the hive and data folders
-            if re.search("[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}Z/$", prefix['Prefix']) is not None:
-                reports.append(prefix['Prefix'] + "manifest.json")
+    for _, prefix in aws_pager(s3, 'list_objects_v2', 'CommonPrefixes', Bucket=inv_bucket, Prefix=inv_prefix, Delimiter="/"):
+        # Look for report "folders", ignoring the hive and data folders
+        if re.search("[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}Z/$", prefix['Prefix']) is not None:
+            reports.append(prefix['Prefix'] + "manifest.json")
 
     found = False
     # Find the latest report we can get
@@ -291,18 +276,16 @@ def s3_list_objects(msg, opts, s3):
                 }
     else:
         # Normal mode, just call list_object_versions and pass the results along
-        paginator = s3.get_paginator("list_object_versions")
         args = {"Bucket": opts['s3_bucket']}
         if 's3_prefix' in opts:
             args['Prefix'] = opts['s3_prefix']
 
-        for page in paginator.paginate(**args):
-            for cur in page.get('Versions', []):
-                yield {
-                    'Key': cur['Key'][prefix_len:],
-                    'Size': cur['Size'],
-                    'StorageClass': cur['StorageClass'],
-                }
+        for _, cur in aws_pager(s3, 'list_object_versions', 'Versions', **args):
+            yield {
+                'Key': cur['Key'][prefix_len:],
+                'Size': cur['Size'],
+                'StorageClass': cur['StorageClass'],
+            }
 
 def scan_folder(opts):
     msg = TempMessage()

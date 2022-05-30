@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from urllib.request import urlopen
+from aws_pager import aws_pager
 import boto3
 import json
 import os
@@ -45,13 +46,11 @@ def get_regions(save_data_filename=None):
 
     final["regions"] = {}
 
-    paginator = ssm.get_paginator('get_parameters_by_path')
-    for page in paginator.paginate(Path="/aws/service/global-infrastructure/regions"):
-        for parameter in page['Parameters']:
-            region = parameter['Name'].split("/")[-1]
-            details = ssm.get_parameter(Name=f"/aws/service/global-infrastructure/regions/{region}/longName")
-            desc = details["Parameter"]["Value"]
-            final["regions"][region] = desc
+    for _, parameter in aws_pager(ssm, 'get_parameters_by_path', 'Parameters', Path="/aws/service/global-infrastructure/regions"):
+        region = parameter['Name'].split("/")[-1]
+        details = ssm.get_parameter(Name=f"/aws/service/global-infrastructure/regions/{region}/longName")
+        desc = details["Parameter"]["Value"]
+        final["regions"][region] = desc
 
     cache_json("region data", final, save_data_filename)
 
@@ -104,7 +103,7 @@ def get_pricing(save_data_filename=None):
             s3_cost_classes = json.load(f)
 
         # Pull out the costs from each field in turn
-        for s3_cost in s3_cost_classes:
+        for s3_cost in s3_cost_classes['classes']:
             temp[s3_cost['desc']] = urls[s3_cost['page_source']]['regions'][region][s3_cost['page_desc']]['price']
             temp[s3_cost['desc']] = temp[s3_cost['desc']].rstrip('0')
 
