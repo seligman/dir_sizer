@@ -18,6 +18,9 @@ def handle_args(opts, args):
         elif len(args) >= 1 and args[0] == "--follow_links":
             opts['lfs_follow_links'] = True
             args = args[1:]
+        elif len(args) >= 1 and args[0] == "--follow_mounts":
+            opts['lfs_follow_mounts'] = True
+            args = args[1:]
         else:
             break
     
@@ -29,8 +32,9 @@ def handle_args(opts, args):
 
 def get_help():
     return """
-        --base <value> = Base path to scan for files
-        --follow_links = Follow into links and junctions (optional)
+        --base <value>  = Base path to scan for files
+        --follow_links  = Follow into links and junctions (optional)
+        --follow_mounts = Follow into mount points (optional)
     """
 
 # ----- SCANNER_START ---------------------------------------------------------
@@ -60,6 +64,15 @@ def is_link(dn):
             # It's something else, either a raw file, or directory
             return False
 
+def is_mount(dn):
+    # Check to see if this is a mount point
+    if os.path.ismount(dn):
+        # It's a mount point
+        return True
+
+    # It's something else, either a raw file, or directory
+    return False
+
 def scan_folder(opts):
     msg = TempMessage()
     msg("Scanning...", force=True)
@@ -80,9 +93,14 @@ def scan_folder(opts):
                 try:
                     if stat.S_ISDIR(cur.stat().st_mode):
                         use_directory = True
-                        if not opts.get("lfs_follow_links", False):
+                        if use_directory and not opts.get("lfs_follow_links", False):
                             # We shouldn't follow into links and junctions, so see if this is junction
                             if is_link(cur.path):
+                                # It's a link, so don't use it
+                                use_directory = False
+                        if use_directory and not opts.get("lfs_follow_mounts", False):
+                            # We shouldn't follow into mount points, so see if this is a mount point
+                            if is_mount(cur.path):
                                 # It's a link, so don't use it
                                 use_directory = False
                         if use_directory:
