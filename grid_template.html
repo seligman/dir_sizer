@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+<link rel="apple-touch-icon" sizes="180x180" href="https://raw.githubusercontent.com/seligman/dir_sizer/master/images/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://raw.githubusercontent.com/seligman/dir_sizer/master/images/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="https://raw.githubusercontent.com/seligman/dir_sizer/master/images/favicon-16x16.png">
+<title>{{title}}</title>
+<style>
+div {
+    border-radius:5px;
+    border-width:1px;
+    border-style:solid;
+    position:absolute;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box;
+}
+.tooltip {
+    display: none;
+    background: #c8c8c8;
+    margin: 25px;
+    padding: 10px;
+    position: absolute;
+    z-index: 1000;
+}
+.label {
+    background-color: #eed;
+    border-radius: 0;
+    border-width: 1px;
+    border-style: solid;
+    border-color: #222;
+    font-size: 10pt;
+    padding-left: 0.2em;
+    padding-right: 0.2em;
+    opacity: 80%;
+    bottom: 2px;
+    right: 2px;
+}
+a {
+    color: #4040f2;
+    text-decoration: none;
+}
+a:hover {
+    color: #4040f2;
+    text-decoration: underline;
+}
+</style>
+<script>
+document.addEventListener('mousemove', on_mousemove, false);
+var last = null;
+var lastColor = "";
+var tooltips = {{{tooltips}}};
+function safe_html(value) {
+    return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function on_mousemove(e) {
+    var tooltip = document.getElementById("tooltip");
+    var is_tooltip = false;
+    var cur = null;
+    for (const elem of e.path) {
+        if (elem.tagName == "DIV" && (elem.id in tooltips)) {
+            cur = elem;
+            break;
+        }
+        if (elem == tooltip) {
+            is_tooltip = true;
+        }
+    }
+    if (cur == null && is_tooltip) {
+        return;
+    }
+
+    if (last != cur) {
+        if (last != null) {
+            last.style.backgroundColor = lastColor;
+        }
+        if (cur != null) {
+            lastColor = cur.style.backgroundColor;
+            cur.style.backgroundColor = 'yellow';
+            document.getElementById("folder").innerHTML = safe_html(tooltips[cur.id][0]);
+            document.getElementById("size").innerHTML = tooltips[cur.id][1];
+            document.getElementById("objects").innerHTML = tooltips[cur.id][2];
+            tooltip.style.display = 'block';
+        } else {
+            tooltip.style.display = 'none';
+        }
+        last = cur;
+    }
+
+    var width = window.innerWidth;
+    var height = window.innerHeight;
+    tooltip.style.left = ((e.pageX - 32) + tooltip.clientWidth + 64 < width ? (e.pageX - 32) : width - (64 + tooltip.clientWidth)) + 'px';
+    tooltip.style.top = (e.pageY + tooltip.clientHeight + 64 < height ? e.pageY : e.pageY - (32 + tooltip.clientHeight)) + 'px';
+}
+function generate_csv() {
+    rows = [["Folder", "Size", "Count"]];
+    for (var key in tooltips) {
+        rows.push([tooltips[key][0], tooltips[key][3], tooltips[key][4]]);
+    }
+    export_to_csv("data.csv", rows);
+}
+function export_to_csv(filename, rows) {
+    var processRow = function (row) {
+        var finalVal = '';
+        for (var j = 0; j < row.length; j++) {
+            var innerValue = row[j] === null ? '' : row[j].toString();
+            if (row[j] instanceof Date) {
+                innerValue = row[j].toLocaleString();
+            };
+            var result = innerValue.replace(/"/g, '""');
+            if (result.search(/("|,|\\n)/g) >= 0)
+                result = '"' + result + '"';
+            if (j > 0)
+                finalVal += ',';
+            finalVal += result;
+        }
+        return finalVal + '\\n';
+    };
+
+    var csvFile = '';
+    for (var i = 0; i < rows.length; i++) {
+        csvFile += processRow(rows[i]);
+    }
+
+    var blob = new Blob([csvFile], { type: 'text/csv;charset=utf-8;' });
+    if (navigator.msSaveBlob) { // IE 10+
+        navigator.msSaveBlob(blob, filename);
+    } else {
+        var link = document.createElement("a");
+        if (link.download !== undefined) { // feature detection
+            // Browsers that support HTML5 download attribute
+            var url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    }
+}
+</script>
+</head>
+<body>
+{{summary_html}}
+Download all <a href="#" onclick="generate_csv();">data</a>.
+<hr>
+{{tree_html}}
+<div class="tooltip" id="tooltip">
+<nobr>Folder: <span id="folder"></span></nobr><br>
+<nobr>Size: <span id="size"></span></nobr><br>
+<nobr>Objects: <span id="objects"></span></nobr><br>
+</div>
+</body>
+</html>
