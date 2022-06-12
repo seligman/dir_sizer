@@ -64,15 +64,6 @@ def is_link(dn):
             # It's something else, either a raw file, or directory
             return False
 
-def is_mount(dn):
-    # Check to see if this is a mount point
-    if os.path.ismount(dn):
-        # It's a mount point
-        return True
-
-    # It's something else, either a raw file, or directory
-    return False
-
 def scan_folder(opts):
     msg = TempMessage()
     msg("Scanning...", force=True)
@@ -81,6 +72,11 @@ def scan_folder(opts):
     total_objects, total_size = 0, 0
     # Use expanduser to allow things like "~/"
     todo = deque([(os.path.expanduser(opts['lfs_base']), [])])
+
+    target_dev = None
+    if not opts.get("lfs_follow_mounts", False):
+        target_dev = os.stat(os.path.expanduser(opts['lfs_base'])).st_dev
+
     while len(todo) > 0:
         path, path_parts = todo.pop()
         # Use scandir instead of other options to force FindFirstFile on Windows
@@ -99,9 +95,9 @@ def scan_folder(opts):
                                 # It's a link, so don't use it
                                 use_directory = False
                         if use_directory and not opts.get("lfs_follow_mounts", False):
-                            # We shouldn't follow into mount points, so see if this is a mount point
-                            if is_mount(cur.path):
-                                # It's a link, so don't use it
+                            # We shouldn't follow into mount points, so see if this directory is the same device
+                            if cur.stat().st_dev != target_dev:
+                                # It's on a different device, ignore it
                                 use_directory = False
                         if use_directory:
                             # It's a directory, add it to our list ot do
@@ -109,13 +105,20 @@ def scan_folder(opts):
                     else:
                         # Pull out the size before doing anything with the data
                         # to give the exception a chance to fire
-                        size = cur.stat().st_size
-                        filename = cur.name
-                        # It's a file, add to our count and send it out
-                        total_objects += 1
-                        total_size += size
-                        msg(f"Scanning, gathered {total_objects} totaling {size_to_string(total_size)}...")
-                        yield path_parts + [filename], size
+                        use_file = True
+                        if use_file and not opts.get("lfs_follow_mounts", False):
+                            # Check to see if a file is on a different device as well
+                            if cur.stat().st_dev != target_dev:
+                                # It's on a different devie, go ahead and ignore it
+                                use_file = False
+                        if use_file:
+                            size = cur.stat().st_size
+                            filename = cur.name
+                            # It's a file, add to our count and send it out
+                            total_objects += 1
+                            total_size += size
+                            msg(f"Scanning, gathered {total_objects} totaling {size_to_string(total_size)}...")
+                            yield path_parts + [filename], size
                 except (FileNotFoundError, OSError, PermissionError):
                     # Ignore any files we don't see (mostly dangling links)
                     # Also ignore any permission errors
