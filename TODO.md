@@ -23,7 +23,7 @@ Wish list items in a future version:
 - [ ] Add a Google Storage abstraction
 - [ ] Add an Azure Blob abstraction
 - [ ] Add a FTP abstraction
-- [ ] A local view of some sort
+- [x] A local view of some sort
 - [ ] Options to control the main size in the HTML view 
 - [ ] Some level of integration with CloudWatch as a widget
 - [ ] An example Lambda that auto-generates a webpage with some frequency

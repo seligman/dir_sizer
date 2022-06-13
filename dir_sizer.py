@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from datetime import datetime
-from grid_layout import get_webpage, AUTO_SCALE, SET_SIZE
+from grid_layout import get_webpage, get_image, AUTO_SCALE, SET_SIZE
 from utils import Folder, BatchingSql, ALL_ABSTRACTIONS
 import json
 import os
@@ -28,6 +28,21 @@ def set_output(opts, args):
         print("ERROR: No filename for --output specified")
         opts['show_help'] = True
         return args
+
+def set_output_image(opts, args):
+    if len(args) > 0:
+        if opts['output_mode'] is not None:
+            print("ERROR: Output already specified")
+            opts['show_help'] = True
+            return args
+        opts['output'] = args[0]
+        opts['output_mode'] = 'png'
+        return args[1:]
+    else:
+        print("ERROR: No filename for --output_image specified")
+        opts['show_help'] = True
+        return args
+
 
 def set_cache(opts, args):
     if len(args) > 0:
@@ -96,6 +111,7 @@ def main():
 
     flags = {
         '--output': set_output,
+        '--output_image': set_output_image,
         '--no_output': set_no_output,
         '--cache': set_cache,
         '--cache_dir': set_cache_dir,
@@ -155,9 +171,10 @@ def main():
         print(textwrap.dedent("""
             Usage: 
 
-            --output <value> = Filename to output results to
-            --no_output      = Don't create any output file
-            --debug          = Show some additional options useful for debugging
+            --output <value>       = Filename to output results to
+            --output_image <value> = Filename to output image to
+            --no_output            = Don't create any output file
+            --debug                = Show some additional options useful for debugging
         """))
         for cur in ALL_ABSTRACTIONS:
             print(f"{cur.MAIN_SWITCH} = {cur.DESCRIPTION}")
@@ -176,12 +193,13 @@ def main():
 
     if opts['output_mode'] == 'html':
         with open(opts['output'], "wt", newline="\n", encoding="utf-8") as f:
-            # TODO: Let the final size be an option
             # The values 1900x965 are designed to be about the real-estate available
             # on a 1080p display with some space left over for the browser UI
             f.write(get_webpage(opts, abstraction, folder, 1900, 965, AUTO_SCALE))
-            # A test set size
-            # f.write(get_webpage(opts, abstraction, folder, 900, 600, SET_SIZE))
+        print(f"All done, created {opts['output']}")
+    elif opts['output_mode'] == 'png':
+        im = get_image(opts, abstraction, folder, 1920, 1080)
+        im.save(opts['output'])
         print(f"All done, created {opts['output']}")
     elif opts['output_mode'] == 'none':
         print(f"All done")

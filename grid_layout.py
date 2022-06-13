@@ -153,7 +153,7 @@ def _get_width(temp):
         temp.vertical = True
         return temp.height
 
-def get_color(depth):
+def get_color(depth, as_rgb=False):
     # Return a color for a grid cell, only the depth of the cell is taken into context
     depth += 1
     hue = depth * 40
@@ -170,10 +170,18 @@ def get_color(depth):
         green = green * saturation + 1.0 - saturation;
         blue = blue * saturation + 1.0 - saturation;
 
-    # Return the color as an HTML color
-    return f"#{int(red*255):02x}{int(green*255):02x}{int(blue*255):02x}"
+    red = max(0, min(255, int(red * 255)))
+    green = max(0, min(255, int(green * 255)))
+    blue = max(0, min(255, int(blue * 255)))
 
-def draw_layout(opts, abstraction, width, height, x, y, scale_mode, folder, tooltips, path, depth=0, other=None):
+    if as_rgb:
+        # Return a RGB tuple
+        return red, green, blue
+    else:
+        # Return the color as an HTML color
+        return f"#{red:02x}{green:02x}{blue:02x}"
+
+def draw_layout_html(opts, abstraction, width, height, x, y, scale_mode, folder, tooltips, path, depth=0, other=None):
     # Draw a layout, returning the new layout as HTML
     if width < 20 or height < 20:
         # This cell is too small to care about
@@ -250,7 +258,7 @@ def draw_layout(opts, abstraction, width, height, x, y, scale_mode, folder, tool
     for cur in temp:
         # For all the sub cells, show them if they're big enough
         if cur.width >= 10 and cur.height >= 10 and cur.key is not None:
-            output_html += draw_layout(
+            output_html += draw_layout_html(
                 opts,
                 abstraction, 
                 cur.width, cur.height, cur.x, cur.y, scale_mode,
@@ -269,6 +277,73 @@ def draw_layout(opts, abstraction, width, height, x, y, scale_mode, folder, tool
 
     return output_html
 
+def draw_layout_image(dr, fnt, opts, abstraction, width, height, x, y, folder, path, depth=0, other=None):
+    # Draw a layout into an image
+    if width < 20 or height < 20:
+        # This cell is too small to care about
+        return
+
+    # Make this cell's width/height visible to the children so they 
+    # can size the grid based off the idealized size
+    next_other = {
+        "x": x,
+        "y": y,
+        "width": width,
+        "height": height,
+    }
+
+    # And draw each cell
+    if depth > 0:
+        dr.rounded_rectangle(
+            (x, y, x+width, y+height), 
+            fill=get_color(depth, True), 
+            outline=(0, 0, 0), 
+            width=2, 
+            radius=5,
+        )
+
+    # Remove the offset for the border, because we'll have less space
+    width -= 2
+    height -= 2
+
+    temp = plot(width, height, folder)
+
+    # Ensure all the child elements have padding
+    padding = 5
+    base_x, base_y = x, y
+    for cur in temp:
+        x, y, right, bottom = cur.x, cur.y, cur.x + cur.width, cur.y + cur.height
+        x += padding
+        y += padding
+        right -= padding
+        bottom -= padding
+        cur.x, cur.y, cur.width, cur.height = x + base_x, y + base_y, right - x, bottom - y
+
+    for cur in temp:
+        # For all the sub cells, show them if they're big enough
+        if cur.width >= 10 and cur.height >= 10 and cur.key is not None:
+            draw_layout_image(
+                dr,
+                fnt,
+                opts,
+                abstraction, 
+                cur.width, cur.height, cur.x, cur.y,
+                folder[cur.key], 
+                path + [cur.key], 
+                depth=depth + 1,
+                other=next_other,
+            )
+
+    if depth == 1 and path[-1] is not None:
+        # The first level off the root gets a label
+        size = fnt.getsize(path[-1])
+        dr.rectangle(
+            (base_x + width - (size[0] + 2), base_y + height - (size[1] + 2), base_x + width + 2, base_y + height + 2),
+            outline=(32, 32, 32),
+            fill=(200, 200, 200),
+        )
+        dr.text((base_x + width - size[0], base_y + height - size[1]), path[-1], font=fnt, fill=(0, 0, 0))
+
 def get_summary(opts, abstraction, folder):
     # Turn the dict summary from the abstraction layer into a simple HTML header
     info = abstraction.get_summary(opts, folder)
@@ -284,7 +359,7 @@ def get_webpage(opts, abstraction, folder, width, height, scale_mode):
     # Layout everything and output to HTML
     tooltips = {}
     # Create the main HTML, along the tooltips
-    tree_html = draw_layout(opts, abstraction, width, height, 0, 0, scale_mode, folder, tooltips, [])
+    tree_html = draw_layout_html(opts, abstraction, width, height, 0, 0, scale_mode, folder, tooltips, [])
     # Create the header HTML
     summary_html, location = get_summary(opts, abstraction, folder)
     # Pull out the page title
@@ -310,6 +385,18 @@ def get_webpage(opts, abstraction, folder, width, height, scale_mode):
 
     # And fill in the template items
     return re.sub("{{(?P<var>[a-z_]+?)}}", lambda m: vars[m.group('var')], template)
+
+def get_image(opts, abstraction, folder, width, height):
+    # Layout everything and output to an Image
+    from PIL import Image, ImageDraw, ImageFont
+
+    im = Image.new('RGBA', (width, height), (0, 0, 0, 255))
+    dr = ImageDraw.Draw(im)
+    fnt = ImageFont.truetype(os.path.join(os.path.split(__file__)[0], "OpenSans-Regular.ttf"), 15)
+
+    draw_layout_image(dr, fnt, opts, abstraction, width, height, 0, 0, folder, [])
+
+    return im
 
 if __name__ == "__main__":
     print("This module is not meant to be run directly")

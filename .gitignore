@@ -29,5 +29,6 @@
 # Debug artifacts
 *.jsonl
 
-# Output webpages
+# Output images and webpages
 *.html
+*.png
