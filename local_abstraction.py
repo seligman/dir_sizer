@@ -4,6 +4,7 @@ from collections import deque
 from utils import TempMessage, size_to_string, count_to_string, register_abstraction
 import os
 import stat
+import platform
 register_abstraction(__name__)
 
 MAIN_SWITCH = "--local"
@@ -77,6 +78,10 @@ def scan_folder(opts):
     if not opts.get("lfs_follow_mounts", False):
         target_dev = os.stat(os.path.expanduser(opts['lfs_base'])).st_dev
 
+    is_darwin = False
+    if platform.system() == 'Darwin':
+        is_darwin = True
+
     while len(todo) > 0:
         path, path_parts = todo.pop()
         # Use scandir instead of other options to force FindFirstFile on Windows
@@ -98,6 +103,10 @@ def scan_folder(opts):
                             # We shouldn't follow into mount points, so see if this directory is the same device
                             if cur.stat().st_dev != target_dev:
                                 # It's on a different device, ignore it
+                                use_directory = False
+                        if use_directory and is_darwin and not opts.get("lfs_follow_mounts", False):
+                            # This directory is the root of the firmlinks on Darwin, ignore this
+                            if cur.path.startswith("/System/Volumes"):
                                 use_directory = False
                         if use_directory:
                             # It's a directory, add it to our list ot do
