@@ -246,7 +246,10 @@ def get_bucket_inventory(msg, s3, bucket, required_fields=set(), prefix=""):
                 cr = csv.reader(sr)
                 for row in cr:
                     # Merge the schema and each row
-                    yield {x: y for x, y in zip(schema, row)}
+                    row = {x: y for x, y in zip(schema, row)}
+                    # Ignore Delete Markers and other objects that don't have a size
+                    if len(row['Size']) > 0:
+                        yield row
 
         # We're done with this report, don't move on to the next one
         break
