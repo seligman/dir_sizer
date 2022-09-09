@@ -7,6 +7,25 @@ import boto3
 import json
 import os
 
+def msg(value, temp=False):
+    # Helper to show a message, including temporary status messages
+    if 'last' not in msg.__dict__:
+        msg.last = ""
+    if len(msg.last) > 0:
+        if len(msg.last) > len(value):
+            extra = len(msg.last) - len(value)
+            to_show = "\b" * extra + " " * extra + "\r" + value
+        else:
+            to_show = "\r" + value
+    else:
+        to_show = value
+    if temp:
+        print(to_show, end="", flush=True)
+        msg.last = value
+    else:
+        print(to_show, flush=True)
+        msg.last = ""
+
 def cache_json(desc, final, save_data_filename):
     if save_data_filename is None:
         return
@@ -25,14 +44,13 @@ def cache_json(desc, final, save_data_filename):
             old_data = json.dumps(old_data, sort_keys=True)
 
     if old_data == updated_data:
-        print("The " + desc + " in " + save_data_filename + " has not changed.")
+        msg("The " + desc + " in " + save_data_filename + " has not changed.")
     else:
         # Dump out the data
         with open(save_data_filename, "wt", newline="\n", encoding="utf-8") as f:
             json.dump(final, f, indent=4, sort_keys=True)
             f.write("\n")
-
-        print("All done, created " + save_data_filename + " for " + desc)
+        msg("All done, created " + save_data_filename + " for " + desc)
 
 
 def get_regions(save_data_filename=None):
@@ -46,8 +64,11 @@ def get_regions(save_data_filename=None):
 
     final["regions"] = {}
 
-    for _, parameter in aws_pager(ssm, 'get_parameters_by_path', 'Parameters', Path="/aws/service/global-infrastructure/regions"):
+    msg("Loading regions from boto3...", temp=True)
+
+    for i, (_, parameter) in enumerate(aws_pager(ssm, 'get_parameters_by_path', 'Parameters', Path="/aws/service/global-infrastructure/regions")):
         region = parameter['Name'].split("/")[-1]
+        msg(f"Loading region #{i+1},'{region}' from boto3...", temp=True)
         details = ssm.get_parameter(Name=f"/aws/service/global-infrastructure/regions/{region}/longName")
         desc = details["Parameter"]["Value"]
         final["regions"][region] = desc
@@ -72,6 +93,7 @@ def get_pricing(save_data_filename=None):
 
     # Load the data for each URL in turn
     for key in urls:
+        msg(f"Getting {key} pricing data...", temp=True)
         urls[key] = json.load(urlopen(urls[key]))
         final["_meta"][key + " updated"] = urls[key]["manifest"]["hawkFilePublicationDate"]
 
