@@ -37,21 +37,21 @@
         {
             "cw": "IntelligentTieringAAStorage",
             "desc": "IntelligentAA",
-            "page_desc": "IntelligentTieringArchiveStorage",
+            "page_desc": "IntelligentTieringArchiveAccess",
             "page_source": "costs",
             "s3": null
         },
         {
             "cw": "IntelligentTieringAIAStorage",
             "desc": "IntelligentAIA",
-            "page_desc": "IntelligentTieringArchiveInstantAccess",
+            "page_desc": "Intelligent Tiering Archive Instant Access",
             "page_source": "costs",
             "s3": "INTELLIGENT_TIERING"
         },
         {
             "cw": "IntelligentTieringDAAStorage",
             "desc": "IntelligentDAA",
-            "page_desc": "IntelligentTieringDeepArchiveStorage",
+            "page_desc": "IntelligentTieringDeepArchiveAccess",
             "page_source": "costs",
             "s3": null
         },
