@@ -203,7 +203,7 @@ def get_bucket_inventory(msg, s3, bucket, required_fields=set(), prefix=""):
     
     # Build up the location of the reports
     inv_bucket = config['Destination']['S3BucketDestination']['Bucket'].split(":")[5]
-    inv_prefix = config['Destination']['S3BucketDestination']['Prefix']
+    inv_prefix = config['Destination']['S3BucketDestination'].get('Prefix', '')
     if len(inv_prefix) > 0:
         inv_prefix += "/"
     inv_prefix += bucket + "/"
