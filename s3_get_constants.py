@@ -41,6 +41,8 @@ def cache_json(desc, final, save_data_filename):
         with open(save_data_filename, "rt", encoding="utf-8") as f:
             old_data = json.load(f)
             old_data["_meta"]["data downloaded"] = ""
+            if 'costs updated' in final['_meta']:
+                old_data['_meta']['costs updated'] = final['_meta']['costs updated']
             old_data = json.dumps(old_data, sort_keys=True)
 
     if old_data == updated_data:
