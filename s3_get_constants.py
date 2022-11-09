@@ -128,8 +128,12 @@ def get_pricing(save_data_filename=None):
 
         # Pull out the costs from each field in turn
         for s3_cost in s3_cost_classes['classes']:
-            temp[s3_cost['desc']] = urls[s3_cost['page_source']]['regions'][region][s3_cost['page_desc']]['price']
-            temp[s3_cost['desc']] = temp[s3_cost['desc']].rstrip('0')
+            if region in urls[s3_cost['page_source']]['regions']:
+                temp[s3_cost['desc']] = urls[s3_cost['page_source']]['regions'][region][s3_cost['page_desc']]['price']
+                temp[s3_cost['desc']] = temp[s3_cost['desc']].rstrip('0')
+            else:
+                print(f"\nWARNING: {s3_cost} not found in {region}", flush=True)
+                temp[s3_cost['desc']] = "0.00"
 
     cache_json("pricing data", final, save_data_filename)
 
