@@ -14,7 +14,7 @@
 # Which is equivalent to the following pattern:
 #
 # paginator = s3.get_paginator('list_objects_v2')
-# for page in paginator.paginate(Bucket='example-bucket'):
+# for page in paginator.paginate(Bucket='scotts-mess'):
 #     for cur in page.get('Contents', []):
 #         print(cur['Key'])
 
