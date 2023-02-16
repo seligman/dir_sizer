@@ -57,11 +57,12 @@ class TempMessage:
             print(temp + msg, end="", flush=True)
 
 class Folder:
-    __slots__ = ("count", "size", "sub")
-    def __init__(self):
+    __slots__ = ("count", "size", "sub", "opts")
+    def __init__(self, opts):
+        self.opts = opts
         self.count = 0
         self.size = 0
-        self.sub = defaultdict(Folder)
+        self.sub = defaultdict(lambda: Folder(opts))
 
     def __getitem__(self, key):
         return self.sub[key]
@@ -70,7 +71,7 @@ class Folder:
         return iter(self.sub.items())
 
     def add(self, filename, size):
-        if len(filename) == 1:
+        if len(filename) == (0 if self.opts["per_object"] else 1):
             if isinstance(size, tuple):
                 self.count += size[1]
                 self.size += size[0]

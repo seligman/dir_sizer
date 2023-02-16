@@ -43,6 +43,27 @@ def set_output_image(opts, args):
         opts['show_help'] = True
         return args
 
+def set_cache_id(opts, args):
+    if len(args) > 0:
+        db = sqlite3.connect(opts['cache'])
+        target_id = int(args[0])
+        args = args[1:]
+        for flags, in db.execute("SELECT flags FROM options WHERE valid = 1 AND id = ?;", (target_id,)):
+            flags = json.loads(flags)
+            for key, value in flags.items():
+                if key == "target_switch":
+                    args.append(value)
+                else:
+                    opts[key] = value
+        return args
+    else:
+        print("ERROR: No ID for --cache_id specified")
+        opts['show_help'] = True
+        return args
+
+def set_cache_opts(opts, args):
+    opts['cache_opts'] = True
+    return args
 
 def set_cache(opts, args):
     if len(args) > 0:
@@ -83,6 +104,10 @@ def set_debug(opts, args):
     opts['debug'] = True
     return args
 
+def set_per_object(opts, args):
+    opts['per_object'] = True
+    return args
+
 def set_no_output(opts, args):
     if opts['output_mode'] is not None:
         print("ERROR: Output already specified")
@@ -106,7 +131,9 @@ def main():
         'output_mode': None,
         'show_help': False,
         'cache': None,
+        'cache_opts': False,
         'debug': False,
+        'per_object': False,
     }
 
     flags = {
@@ -114,7 +141,9 @@ def main():
         '--output_image': set_output_image,
         '--no_output': set_no_output,
         '--cache': set_cache,
+        '--cache_opts': set_cache_opts,
         '--cache_dir': set_cache_dir,
+        '--cache_id': set_cache_id,
         '--debug': set_debug,
     }
 
@@ -148,6 +177,17 @@ def main():
                 print("ERROR: Invalid options " + args[0])
                 opts['show_help'] = True
 
+    if opts['cache_opts']:
+        if opts['cache'] is not None:
+            db = sqlite3.connect(opts['cache'])
+            for id, flags in db.execute("SELECT id, flags FROM options WHERE valid = 1;"):
+                print(f"Cached info #{id}:")
+                print(json.dumps(json.loads(flags), indent=4))
+            exit(0)
+        else:
+            print("ERROR: Need to specify a cache file to view options")
+            opts['show_help'] = True
+
     if not opts['show_help'] and opts['target'] is None:
         print("ERROR: No target scanner module specified")
         opts['show_help'] = True
@@ -161,6 +201,8 @@ def main():
             Debug options:
 
             --cache <value>     = Store and use cache of files in <value> file
+            --cache_opts        = Show flags stored in cache database file
+            --cache_id <id>     = Load cache data via ID #<id>
             --cache_dir <value> = Create a new cache file in <value> directory with 
                                   the current timestamp
                                   Note that one cache file can store different options
@@ -174,6 +216,7 @@ def main():
             --output <value>       = Filename to output results to
             --output_image <value> = Filename to output image to
             --no_output            = Don't create any output file
+            --per_object           = Show each object as a seperate box
             --debug                = Show some additional options useful for debugging
         """))
         for cur in ALL_ABSTRACTIONS:
@@ -184,7 +227,7 @@ def main():
             print("")
         exit(1)
 
-    folder = Folder()
+    folder = Folder(opts)
     abstraction = opts['target']
 
     for filename, size in load_files(opts, abstraction):

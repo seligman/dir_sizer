@@ -52,7 +52,8 @@ def _prepare_nodes(temp, values):
     # this is done to allow us to also know which nodes are so small
     # as to be useless, so they're dropped here
     temp_sum = sum(x.value for x in values if x.value > 0)
-    ret = [x for x in values if (x.value / temp_sum) >= 0.01]
+    # Drop anything that accounts for less than 0.01% of the total size
+    ret = [x for x in values if (x.value / temp_sum) >= 0.0001]
     ret.sort(key=lambda x: x.value, reverse=True)
     temp_sum = sum(x.value for x in ret)
     total_area = temp.width * temp.height
@@ -63,8 +64,8 @@ def _prepare_nodes(temp, values):
 def _squarify(temp, values, current_row, width, bail):
     # Attempt to layout the squares, they'll be stretched to fit
 
-    if bail > 100:
-        # An edge case, if we're 100 sub-rows in this process
+    if bail > 1000000:
+        # An edge case, if we're a million sub-rows in this process
         # just give up, whatever we end up with is nonsense at this
         # point
         return
@@ -183,7 +184,7 @@ def get_color(depth, as_rgb=False):
 
 def draw_layout_html(opts, abstraction, width, height, x, y, scale_mode, folder, tooltips, path, depth=0, other=None):
     # Draw a layout, returning the new layout as HTML
-    if width < 20 or height < 20:
+    if width < 5 or height < 5:
         # This cell is too small to care about
         return ""
 
@@ -257,17 +258,18 @@ def draw_layout_html(opts, abstraction, width, height, x, y, scale_mode, folder,
 
     for cur in temp:
         # For all the sub cells, show them if they're big enough
-        if cur.width >= 10 and cur.height >= 10 and cur.key is not None:
-            output_html += draw_layout_html(
-                opts,
-                abstraction, 
-                cur.width, cur.height, cur.x, cur.y, scale_mode,
-                folder[cur.key], 
-                tooltips, 
-                path + [cur.key], 
-                depth=depth + 1,
-                other=next_other,
-            )
+        if cur.width >= 1 and cur.height >= 1:
+            if cur.key is not None:
+                output_html += draw_layout_html(
+                    opts,
+                    abstraction, 
+                    cur.width, cur.height, cur.x, cur.y, scale_mode,
+                    folder[cur.key], 
+                    tooltips, 
+                    path + [cur.key], 
+                    depth=depth + 1,
+                    other=next_other,
+                )
 
     if depth == 1 and path[-1] is not None:
         # The first level off the root gets a label
