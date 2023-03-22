@@ -43,16 +43,13 @@ def aws_pager(client, function, results, *args, **kwargs):
         for result in results:
             for cur in resp.get(result, []):
                 yield result, cur
-
+            
         if 'NextContinuationToken' in resp:
             # Use the ContinuationToken format
             kwargs['ContinuationToken'] = resp['NextContinuationToken']
         elif 'NextToken' in resp:
             # Use the NextToken format
             kwargs['NextToken'] = resp['NextToken']
-        elif 'NextKeyMarker' in resp:
-            # Use the key marker format
-            kwargs['KeyMarker'] = resp['NextKeyMarker']
         else:
             break
 
