@@ -50,6 +50,9 @@ def aws_pager(client, function, results, *args, **kwargs):
         elif 'NextToken' in resp:
             # Use the NextToken format
             kwargs['NextToken'] = resp['NextToken']
+        elif 'NextKeyMarker' in resp:
+            # Use the key marker format
+            kwargs['KeyMarker'] = resp['NextKeyMarker']
         else:
             break
 
