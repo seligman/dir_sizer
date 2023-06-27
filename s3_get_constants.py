@@ -30,20 +30,23 @@ def cache_json(desc, final, save_data_filename):
     if save_data_filename is None:
         return
 
-    temp = final["_meta"]["data downloaded"]
-    final["_meta"]["data downloaded"] = ""
-    updated_data = json.dumps(final, sort_keys=True)
-    final["_meta"]["data downloaded"] = temp
+    def serialize_for_compare(data):
+        # Force a deep copy by serialize/unserializing
+        data = json.loads(json.dumps(data))
+        # Ignore the _meta key when comparing
+        data["_meta"] = "-iognore-"
+        # Serialize to a set format
+        data = json.dumps(data, sort_keys=True)
+        return data
+
+    updated_data = serialize_for_compare(final)
 
     # Load the old version if it's available
     old_data = ""
     if os.path.isfile(save_data_filename):
         with open(save_data_filename, "rt", encoding="utf-8") as f:
             old_data = json.load(f)
-            old_data["_meta"]["data downloaded"] = ""
-            if 'costs updated' in final['_meta']:
-                old_data['_meta']['costs updated'] = final['_meta']['costs updated']
-            old_data = json.dumps(old_data, sort_keys=True)
+            old_data = serialize_for_compare(old_data)
 
     if old_data == updated_data:
         msg("The " + desc + " in " + save_data_filename + " has not changed.")
