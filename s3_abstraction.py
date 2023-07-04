@@ -17,6 +17,8 @@ try:
     # only fail if the user tries to call into S3
     import boto3
     import botocore.exceptions
+    from botocore import UNSIGNED
+    from botocore.config import Config
     IMPORTS_OK = True
 except:
     IMPORTS_OK = False
@@ -49,6 +51,9 @@ def handle_args(opts, args):
             args = args[1:]
         elif len(args) >= 1 and args[0] == "--inventory":
             opts['s3_inventory'] = True
+            args = args[1:]
+        elif len(args) >= 1 and args[0] == "--no-sign-request":
+            opts['no-sign-request'] = True
             args = args[1:]
         elif len(args) >= 2 and args[0] == "--endpoint":
             opts['s3_endpoint'] = args[1]
@@ -92,6 +97,7 @@ def get_help():
         --all_buckets      = Show size of all buckets (only if --bucket/--prefix isn't used)
                              (--profile may be a comma delimited list of profiles for this mode)
         --cost             = Count cost instead of size for objects
+        --no-sign-request  = Don't sign requests
     """ + ("" if IMPORTS_OK else """
         WARNING: boto3 import failed, module will not work correctly!
     """)
@@ -107,10 +113,15 @@ def get_s3(opts, profile_name=None):
     args = {}
     if 's3_endpoint' in opts:
         args['endpoint_url'] = opts['s3_endpoint']
+
     if profile_name is None:
         profile = opts.get('s3_profile', '')
     else:
         profile = profile_name
+
+    if "no-sign-request" in opts:
+        args['config'] = Config(signature_version=UNSIGNED)
+
     if len(profile):
         return boto3.Session(profile_name=profile).client('s3', **args)
     else:
