@@ -12,6 +12,9 @@ import io
 import json
 import os
 import re
+import sys
+if sys.version_info >= (3, 11): from datetime import UTC
+else: import datetime as datetime_fix; UTC=datetime_fix.timezone.utc
 try:
     # Wrap boto3 in a try/except block so we can still show the help, but
     # only fail if the user tries to call into S3
@@ -348,7 +351,7 @@ def scan_folder(opts):
 
         # The range to query from CloudWatch, basically, get the latest metric for each bucket, 
         # with some padding to handle the daily roll off of data
-        now = datetime.utcnow()
+        now = datetime.now(UTC).replace(tzinfo=None)
         now = datetime(now.year, now.month, now.day)
         start_date = now - timedelta(hours=36)
         stats = defaultdict(lambda: defaultdict(dict))

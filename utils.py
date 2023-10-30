@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 import json
 import sys
+if sys.version_info >= (3, 11): from datetime import UTC
+else: import datetime as datetime_fix; UTC=datetime_fix.timezone.utc
 
 ALL_ABSTRACTIONS = []
 def register_abstraction(module_name):
@@ -32,10 +34,10 @@ class TempMessage:
     def __init__(self, update_freq=timedelta(seconds=1)):
         self.last = ""
         self.update_freq = update_freq
-        self.next_update = datetime.utcnow()
+        self.next_update = datetime.now(UTC).replace(tzinfo=None)
     
     def __call__(self, msg, force=False, newline=False):
-        now = datetime.utcnow()
+        now = datetime.now(UTC).replace(tzinfo=None)
         if force or newline:
             pass
         elif now >= self.next_update:

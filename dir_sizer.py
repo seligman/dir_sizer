@@ -8,6 +8,8 @@ import os
 import sqlite3
 import sys
 import textwrap
+if sys.version_info >= (3, 11): from datetime import UTC
+else: import datetime as datetime_fix; UTC=datetime_fix.timezone.utc
 
 # Abstractions will self-register if they're able
 import local_abstraction
@@ -89,7 +91,7 @@ def set_cache_dir(opts, args):
             print(f"ERROR: Directory {dn} does not exist")
             opts['show_help'] = True
             return args
-        now = datetime.utcnow()
+        now = datetime.now(UTC).replace(tzinfo=None)
         dn = os.path.join(dn, now.strftime("%Y"), now.strftime("%m"), now.strftime("%d"))
         if not os.path.isdir(dn):
             os.makedirs(dn)
