@@ -8,6 +8,10 @@ import json
 import os
 import re
 
+import sys
+
+BAIL = sys.getrecursionlimit() - 50
+
 # Different scale modes for the webpage
 AUTO_SCALE = "AUTO_SCALE"   # Attempt to auto scale to the browser's viewport
 SET_SIZE = "SET_SIZE"       # Use the width/height as a hard-coded size
@@ -64,8 +68,8 @@ def _prepare_nodes(temp, values):
 def _squarify(temp, values, current_row, width, bail):
     # Attempt to layout the squares, they'll be stretched to fit
 
-    if bail > 1000000:
-        # An edge case, if we're a million sub-rows in this process
+    if bail > BAIL:
+        # An edge case, if we're this many sub-rows in this process
         # just give up, whatever we end up with is nonsense at this
         # point
         return
