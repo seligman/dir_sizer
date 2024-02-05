@@ -8,7 +8,7 @@ Showing the relative size of folders, making it easy to see what areas of a fold
 
 It supports scanning and producing reports for AWS S3 Buckets, directories in the local file system, and directories in a remote machine via SSH.  In the future it will add support for other sources, including Google Storage Bucket, Azure Blobs, and perhaps others.
 
-To run it, right now you'll need a recent version of Python installed, along with optionally the boto3 package available for S3 and paramiko for SSH.  Then you can run a command like:
+To run it, right now you'll need a recent version of Python installed, along with optionally the boto3 package available for S3, google-cloud-storage for Google Cloud storage, and paramiko for SSH.  Then you can run a command like:
 
 ```
 python dir_sizer.py --s3 --bucket example-bucket --output example.html

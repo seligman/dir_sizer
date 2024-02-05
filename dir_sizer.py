@@ -15,6 +15,7 @@ else: import datetime as datetime_fix; UTC=datetime_fix.timezone.utc
 import local_abstraction
 import s3_abstraction
 import ssh_abstraction
+import gcloud_abstraction
 import test_abstraction # TODO: Remove this when it's no longer needed
 
 def set_output(opts, args):

@@ -20,7 +20,7 @@ Wish list items in a future version:
 - [x] Add or extend the S3 abstraction to show all buckets in one pass
 - [x] Add a "cost" size option to S3 to size the bucket by costs
 - [x] Add a SSH abstraction
-- [ ] Add a Google Storage abstraction
+- [x] Add a Google Storage abstraction
 - [ ] Add an Azure Blob abstraction
 - [ ] Add a FTP abstraction
 - [x] A local view of some sort
