@@ -108,13 +108,13 @@ function export_to_csv(filename, rows) {
                 innerValue = row[j].toLocaleString();
             };
             var result = innerValue.replace(/"/g, '""');
-            if (result.search(/("|,|\\n)/g) >= 0)
+            if (result.search(/("|,|\n)/g) >= 0)
                 result = '"' + result + '"';
             if (j > 0)
                 finalVal += ',';
             finalVal += result;
         }
-        return finalVal + '\\n';
+        return finalVal + '\n';
     };
 
     var csvFile = '';
