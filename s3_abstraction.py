@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 from datetime import datetime, timedelta
-from utils import TempMessage, size_to_string, count_to_string, register_abstraction, chunks
+from utils import chunks, count_to_string, hide_value, register_abstraction, size_to_string, TempMessage
 from multiprocessing import Pool
 from urllib.parse import unquote, unquote_plus
 from aws_pager import aws_pager
@@ -476,7 +476,17 @@ def dump_count(opts, value):
 
 def get_summary(opts, folder):
     if 's3_bucket' in opts:
-        location = "s3://" + opts['s3_bucket'] + "/" + opts.get('s3_prefix', "")
+        location = "s3://"
+        if opts['hide_names']:
+            location += "example-bucket-" + hide_value(opts, opts['s3_bucket'])
+        else:
+            location += opts['s3_bucket']
+        location += "/"
+        if len(opts.get('s3_prefix', "")) > 0:
+            if opts['hide_names']:
+                location += hide_value(opts, opts.get('s3_prefix', ""))
+            else:
+                location += opts.get('s3_prefix', "")
     else:
         if 's3_profile' in opts:
             temp = opts['s3_profile'].split(",")

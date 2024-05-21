@@ -3,6 +3,8 @@
 from datetime import datetime, timedelta
 from collections import defaultdict
 import json
+import random
+import string
 import sys
 if sys.version_info >= (3, 11): from datetime import UTC
 else: import datetime as datetime_fix; UTC=datetime_fix.timezone.utc
@@ -140,6 +142,27 @@ class BatchingSql:
 def chunks(values, size):
     for i in range(0, len(values), size):
         yield values[i : i + size]
+
+def hide_value(opts, to_hide):
+    if isinstance(to_hide, list):
+        return [hide_value(opts, x) for x in to_hide]
+
+    # In this mode, hide all names, keeping track of the random selections
+    # so we repeat any hidden names
+    if 'hide_history' not in opts:
+        opts['hide_history'] = {}
+        opts['hide_used'] = set()
+        # Seed the random number generator so that run-to-run is the same
+        random.seed(200)
+    
+    if to_hide not in opts['hide_history']:
+        while True:
+            picked = "".join(random.choice(string.ascii_lowercase) for _ in range(random.randint(4, 10)))
+            if picked not in opts['hide_used']:
+                break
+        opts['hide_used'].add(picked)
+        opts['hide_history'][to_hide] = picked
+    return opts['hide_history'][to_hide]
 
 if __name__ == "__main__":
     print("This module is not meant to be run directly")

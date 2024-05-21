@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from grid_layout import get_webpage, get_image, AUTO_SCALE, SET_SIZE
-from utils import Folder, BatchingSql, ALL_ABSTRACTIONS
+from utils import hide_value, Folder, BatchingSql, ALL_ABSTRACTIONS
 import json
 import os
 import sqlite3
@@ -45,6 +45,10 @@ def set_output_image(opts, args):
         print("ERROR: No filename for --output_image specified")
         opts['show_help'] = True
         return args
+
+def set_hide_names(opts, args):
+    opts['hide_names'] = True
+    return args
 
 def set_cache_id(opts, args):
     if len(args) > 0:
@@ -137,6 +141,7 @@ def main():
         'cache_opts': False,
         'debug': False,
         'per_object': False,
+        'hide_names': False,
     }
 
     flags = {
@@ -147,6 +152,7 @@ def main():
         '--cache_opts': set_cache_opts,
         '--cache_dir': set_cache_dir,
         '--cache_id': set_cache_id,
+        '--hide_names': set_hide_names,
         '--debug': set_debug,
     }
 
@@ -209,6 +215,7 @@ def main():
             --cache_dir <value> = Create a new cache file in <value> directory with 
                                   the current timestamp
                                   Note that one cache file can store different options
+            --hide_names        = Hide all names, replace them with fake names
         """))
         exit(1)
 
@@ -300,6 +307,8 @@ def load_files(opts, abstraction):
             yield filename, size
     else:
         for filename, size in abstraction.scan_folder(opts):
+            if opts['hide_names']:
+                filename = hide_value(opts, filename)
             yield filename, size
             if known_id is not None:
                 cache_add(opts, filename, size)
