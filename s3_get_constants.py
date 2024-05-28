@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from urllib.request import urlopen
-from aws_pager import aws_pager
+from aws_pager import aws_pager # type: ignore
 import boto3
 import json
 import os
@@ -135,7 +135,18 @@ def get_pricing(save_data_filename=None):
         # Pull out the costs from each field in turn
         for s3_cost in s3_cost_classes['classes']:
             if region in urls[s3_cost['page_source']]['regions']:
-                temp[s3_cost['desc']] = urls[s3_cost['page_source']]['regions'][region][s3_cost['page_desc']]['price']
+                # The page description can be a list for cases where are multiple possibilites
+                page_descs = s3_cost['page_desc']
+                if isinstance(page_descs, str):
+                    page_descs = [page_descs]
+                found_item = False
+                for page_desc in page_descs:
+                    if page_desc in urls[s3_cost['page_source']]['regions'][region]:
+                        temp[s3_cost['desc']] = urls[s3_cost['page_source']]['regions'][region][page_desc]['price']
+                        found_item = True
+                        break
+                if not found_item:
+                    raise Exception("Unable to find: " + str(page_descs) + ", for " + str(s3_cost))
                 temp[s3_cost['desc']] = temp[s3_cost['desc']].rstrip('0')
             else:
                 print(f"\nWARNING: {s3_cost} not found in {region}", flush=True)

@@ -65,7 +65,10 @@
         {
             "cw": "IntelligentTieringIAStorage",
             "desc": "IntelligentIA",
-            "page_desc": "Intelligent Tiering Infrequent Access per GB Mo",
+            "page_desc": [
+                "Intelligent Tiering Infrequent Access per GB Mo",
+                "Intelligent Tiering Infrequent Access From 0 to Inf per GB-Mo"
+            ],
             "page_source": "costs",
             "s3": null
         },
