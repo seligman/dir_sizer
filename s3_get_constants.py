@@ -4,11 +4,14 @@ from datetime import datetime
 from urllib.request import urlopen
 from aws_pager import aws_pager # type: ignore
 import boto3
+import gzip
 import json
 import os
 import sys
 if sys.version_info >= (3, 11): from datetime import UTC
 else: import datetime as datetime_fix; UTC=datetime_fix.timezone.utc
+
+DEBUG_REQUESTS = False
 
 def msg(value, temp=False):
     # Helper to show a message, including temporary status messages
@@ -102,7 +105,27 @@ def get_pricing(save_data_filename=None):
     # Load the data for each URL in turn
     for key in urls:
         msg(f"Getting {key} pricing data...", temp=True)
-        urls[key] = json.load(urlopen(urls[key]))
+        resp = urlopen(urls[key])
+        resp_data = resp.read()
+        if resp.headers.get("Content-Encoding", "") == "gzip":
+            resp_data = gzip.decompress(resp_data)
+        # Helper code to debug the responses from the different URLs
+        if DEBUG_REQUESTS:
+            debug_i = 0
+            while True:
+                debug_fn = f"debug_{debug_i:04d}.dat"
+                if not os.path.isfile(debug_fn):
+                    break
+                debug_i += 1
+            with open(debug_fn, "wb") as debug_f:
+                debug_f.write(f"URL: {urls[key]}".encode("utf-8"))
+                debug_f.write(f"Length: {len(resp_data)}\n".encode("utf-8"))
+                debug_f.write(f"Headers:\n".encode("utf-8"))
+                for debug_key, debug_value in resp.headers.items():
+                    debug_f.write(f"  {debug_key}: {debug_value}\n".encode("utf-8"))
+                debug_f.write(f"Data:\n".encode("utf-8"))
+                debug_f.write(resp_data)
+        urls[key] = json.loads(resp_data)
         final["_meta"][key + " updated"] = urls[key]["manifest"]["hawkFilePublicationDate"]
 
     # Get all of the regions, since these JSON files from AWS drive user-visible 
