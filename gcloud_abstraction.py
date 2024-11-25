@@ -63,7 +63,7 @@ def scan_folder(opts):
     total_objects = 0
     total_size = 0
 
-    for i, blob in enumerate(sc.list_blobs(opts['gcloud_bucket'])):
+    for i, blob in enumerate(sc.list_blobs(opts['gcloud_bucket'], prefix=opts['gcloud_prefix'] if 'gcloud_prefix' in opts else None)):
         size = blob.size
         name = blob.name
         total_objects += 1
