@@ -131,6 +131,8 @@ def get_pricing(save_data_filename=None):
     # Get all of the regions, since these JSON files from AWS drive user-visible 
     # data, all of the regions are the full English description of the region.
     regions = [x for x in urls['costs']['regions'] if len(x)]
+    # Ignore some artifacts of how the page is created
+    regions = [x for x in regions if x not in {"Any"}]
 
     # Load the region names, and handle the edge cases with slightly different names
     with open("s3_regions.json") as f:
