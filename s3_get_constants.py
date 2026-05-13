@@ -144,10 +144,15 @@ def get_pricing(save_data_filename=None):
         for region_name in [x for x in all_regions if x.startswith("Europe")]:
             all_regions[region_name.replace("Europe ", "EU ")] = all_regions[region_name]
 
-    # Raise an exception if there's a not yet known region
+    # Just warn on regions for now, since some newish regions are added before their SSM counterparts
+    temp = []
     for region_name in regions:
         if region_name not in all_regions:
-            raise Exception(region_name + " is not a known region!")
+            print("\n")
+            print("Warning: '" + region_name + "' is not a known region.")
+        else:
+            temp.append(region_name)
+    regions = temp
 
     for region in regions:
         # Pull out the data for this region
